@@ -410,8 +410,8 @@ class MetodoBiseccion:
                     'Raíz aprox.': f'{c:.6f}',
                     'Error': f'{error_abs:.2e}'
                 })
-        else:
-            console.print(f"\n[yellow]⚠️  Se alcanzó el máximo de iteraciones ({self.max_iteraciones})[/yellow]")
+            else:
+                console.print(f"\n[yellow]⚠️  Se alcanzó el máximo de iteraciones ({self.max_iteraciones})[/yellow]")
     
     def _mostrar_resultados(self):
         """Muestra los resultados del método"""
@@ -628,8 +628,9 @@ def main():
             console.print("\n[green]¡Gracias por usar el Método de Bisección![/green]")
             break
 
-if __name__ == "__main__":
-    main()
+# Para ejecutar el programa, descomenta las siguientes líneas:
+# if __name__ == "__main__":
+#     main()
 ```
 
 # Interfaz de Usuario

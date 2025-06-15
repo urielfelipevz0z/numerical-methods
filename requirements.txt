@@ -14,3 +14,7 @@ tqdm>=4.65.0
 
 # Utilidades adicionales
 pandas>=2.0.0
+
+# Jupyter y documentación
+jupyter>=1.1.0
+pyyaml>=6.0.0

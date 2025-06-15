@@ -1,0 +1,16 @@
+# Dependencias para el proyecto de métodos numéricos
+# Bibliotecas de cálculo científico
+numpy>=1.24.0
+sympy>=1.12
+scipy>=1.10.0
+
+# Visualización
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Interfaz de usuario en terminal
+rich>=13.5.0
+tqdm>=4.65.0
+
+# Utilidades adicionales
+pandas>=2.0.0

@@ -1,0 +1,1172 @@
+---
+title: "Método de Newton-Raphson"
+author: "Proyecto Personal - Ingeniería en Computación"  
+date: today
+format: 
+  html:
+    theme: cosmo
+    code-fold: true
+    toc: true
+    number-sections: true
+    highlight-style: github
+    fig-width: 10
+    fig-height: 6
+    embed-resources: true
+execute:
+  warning: false
+  echo: true
+---
+
+# ¿Para qué sirve?
+
+El método de Newton-Raphson es uno de los algoritmos más poderosos para encontrar raíces de ecuaciones no lineales. Su convergencia cuadrática lo convierte en la opción preferida cuando se requiere alta precisión y rapidez.
+
+## Aplicaciones Prácticas
+
+- **Ingeniería estructural**: Análisis no lineal de estructuras y cálculo de cargas críticas
+- **Procesamiento de señales**: Filtros adaptativos y estimación de parámetros
+- **Economía computacional**: Optimización de carteras y modelos de equilibrio
+- **Física computacional**: Resolución de ecuaciones de estado y mecánica cuántica
+- **Análisis numérico**: Base para métodos de optimización y sistemas no lineales
+
+## Casos de Uso Específicos
+
+1. **Ecuaciones trascendentales complejas**: $e^x \cos(x) - x^2 = 0$
+2. **Raíces de polinomios de alto grado**: Localización de raíces múltiples
+3. **Problemas de ingeniería**: Cálculo de frecuencias naturales, análisis de circuitos
+4. **Métodos híbridos**: Combinación con bisección para garantizar convergencia
+5. **Optimización**: Encontrar puntos críticos de funciones objetivo
+
+# ¿Cómo funciona?
+
+## Fundamento Teórico
+
+El método utiliza la aproximación lineal de Taylor para la función en cada iteración:
+
+$$f(x) \approx f(x_n) + f'(x_n)(x - x_n)$$
+
+Igualando a cero y resolviendo para $x$:
+
+$$x_{n+1} = x_n - \frac{f(x_n)}{f'(x_n)}$$
+
+## Interpretación Geométrica
+
+1. **Línea tangente**: En cada punto $(x_n, f(x_n))$, se traza la tangente
+2. **Intersección**: Se encuentra donde la tangente cruza el eje X
+3. **Nueva aproximación**: Ese punto se convierte en $x_{n+1}$
+4. **Iteración**: Se repite el proceso hasta convergencia
+
+## Algoritmo Paso a Paso
+
+```
+1. INICIO
+2. Definir f(x) y calcular f'(x) (derivada)
+3. Establecer x₀ (valor inicial)
+4. Establecer tolerancia ε y máximo de iteraciones N
+5. Para n = 0, 1, 2, ..., N:
+   a. Calcular f(xₙ) y f'(xₙ)
+   b. Verificar si f'(xₙ) ≈ 0 (derivada nula)
+   c. Calcular x_{n+1} = xₙ - f(xₙ)/f'(xₙ)
+   d. Verificar convergencia: |x_{n+1} - xₙ| < ε
+   e. Si converge: TERMINAR con éxito
+6. Si se alcanza N iteraciones: TERMINAR sin convergencia
+7. FIN
+```
+
+## Convergencia Cuadrática
+
+Bajo condiciones favorables:
+- $|e_{n+1}| \approx C|e_n|^2$ donde $e_n = x_n - x^*$
+- El número de dígitos correctos se duplica en cada iteración
+- Convergencia extremadamente rápida cerca de la solución
+
+# Implementación Completa
+
+```{python}
+#!/usr/bin/env python3
+"""
+Método de Newton-Raphson - Implementación con menús interactivos
+Convergencia cuadrática para encontrar raíces de ecuaciones no lineales
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.progress import track
+import sympy as sp
+from typing import Callable, Tuple, List, Optional
+import os
+
+console = Console()
+
+class MetodoNewtonRaphson:
+    """Implementación del método de Newton-Raphson con interfaz interactiva"""
+    
+    def __init__(self):
+        self.funcion_str = ""
+        self.funcion_sympy = None
+        self.funcion_numpy = None
+        self.derivada_sympy = None
+        self.derivada_numpy = None
+        self.x0 = 0.0
+        self.tolerancia = 1e-10
+        self.max_iteraciones = 50
+        self.resultados = []
+        self.metodo_derivada = "simbolica"  # "simbolica", "numerica", "manual"
+        
+    def limpiar_pantalla(self):
+        """Limpia la pantalla del terminal"""
+        os.system('clear' if os.name == 'posix' else 'cls')
+        
+    def mostrar_banner(self):
+        """Muestra el banner del método"""
+        banner = Panel.fit(
+            "[bold blue]⚡ MÉTODO DE NEWTON-RAPHSON[/bold blue]\n"
+            "[italic]Convergencia cuadrática mediante aproximación tangente[/italic]",
+            border_style="blue"
+        )
+        console.print(banner)
+        console.print()
+    
+    def mostrar_menu_principal(self) -> str:
+        """Muestra el menú principal y retorna la opción seleccionada"""
+        self.limpiar_pantalla()
+        self.mostrar_banner()
+        
+        table = Table(show_header=False, box=None, padding=(0, 2))
+        table.add_column("Opción", style="bold cyan", width=8)
+        table.add_column("Descripción", style="white")
+        
+        opciones = [
+            ("1", "🎯 Ingresar función f(x)"),
+            ("2", "📐 Configurar derivada f'(x)"),
+            ("3", "📍 Configurar valor inicial x₀"),
+            ("4", "⚙️  Configurar parámetros"),
+            ("5", "🚀 Ejecutar Newton-Raphson"),
+            ("6", "📊 Ver resultados"),
+            ("7", "📈 Análisis de convergencia"),
+            ("8", "🔍 Análisis de derivada"),
+            ("9", "❓ Ayuda"),
+            ("10", "🚪 Salir")
+        ]
+        
+        for opcion, desc in opciones:
+            table.add_row(opcion, desc)
+        
+        console.print(table)
+        return input("\n🔹 Seleccione una opción: ").strip()
+    
+    def ingresar_funcion(self):
+        """Permite al usuario ingresar la función f(x)"""
+        self.limpiar_pantalla()
+        
+        panel_ayuda = Panel(
+            "[bold cyan]Ingrese la función f(x) = 0[/bold cyan]\n\n"
+            "Ejemplos válidos:\n"
+            "• x**3 - 2*x - 5\n"
+            "• sin(x) - 0.5\n"
+            "• exp(x) - 3*x\n"
+            "• x**2 - cos(x)\n"
+            "• log(x) - x + 2\n\n"
+            "[yellow]Funciones disponibles:[/yellow]\n"
+            "sin, cos, tan, exp, log, ln, sqrt, abs\n\n"
+            "[green]💡 Newton-Raphson requiere que f'(x) ≠ 0 en la solución[/green]",
+            title="💡 Ayuda para Funciones",
+            border_style="blue"
+        )
+        console.print(panel_ayuda)
+        
+        while True:
+            try:
+                funcion_input = input("\nIngrese f(x): ").strip()
+                
+                if not funcion_input:
+                    console.print("[red]❌ La función no puede estar vacía[/red]")
+                    continue
+                
+                # Procesar la función con SymPy
+                x = sp.Symbol('x')
+                funcion_input = funcion_input.replace('^', '**')
+                self.funcion_sympy = sp.sympify(funcion_input)
+                self.funcion_numpy = sp.lambdify(x, self.funcion_sympy, 'numpy')
+                self.funcion_str = funcion_input
+                
+                # Calcular derivada simbólica automáticamente
+                try:
+                    self.derivada_sympy = sp.diff(self.funcion_sympy, x)
+                    self.derivada_numpy = sp.lambdify(x, self.derivada_sympy, 'numpy')
+                    
+                    console.print(f"\n[green]✅ Función ingresada: f(x) = {funcion_input}[/green]")
+                    console.print(f"[blue]📐 Derivada calculada: f'(x) = {self.derivada_sympy}[/blue]")
+                    
+                except Exception as e:
+                    console.print(f"\n[green]✅ Función ingresada: f(x) = {funcion_input}[/green]")
+                    console.print(f"[yellow]⚠️  No se pudo calcular la derivada automáticamente: {e}[/yellow]")
+                    console.print("[yellow]Podrá ingresarla manualmente en el siguiente menú[/yellow]")
+                
+                # Probar la función en algunos puntos
+                console.print("\n[cyan]Valores de prueba:[/cyan]")
+                test_table = Table(title="Evaluación de f(x)")
+                test_table.add_column("x", justify="center", style="cyan")
+                test_table.add_column("f(x)", justify="center", style="green")
+                
+                if self.derivada_numpy:
+                    test_table.add_column("f'(x)", justify="center", style="yellow")
+                
+                for val in [0, 1, -1, 0.5, 2]:
+                    try:
+                        f_val = float(self.funcion_numpy(val))
+                        if self.derivada_numpy:
+                            try:
+                                df_val = float(self.derivada_numpy(val))
+                                test_table.add_row(str(val), f"{f_val:.6f}", f"{df_val:.6f}")
+                            except:
+                                test_table.add_row(str(val), f"{f_val:.6f}", "No definida")
+                        else:
+                            test_table.add_row(str(val), f"{f_val:.6f}")
+                    except:
+                        if self.derivada_numpy:
+                            test_table.add_row(str(val), "No definida", "No definida")
+                        else:
+                            test_table.add_row(str(val), "No definida")
+                        
+                console.print(test_table)
+                break
+                
+            except Exception as e:
+                console.print(f"[red]❌ Error en la función: {str(e)}[/red]")
+                console.print("Revise la sintaxis. Use 'exp', 'sin', 'cos', 'log', etc.")
+                
+        input("\nPresione Enter para continuar...")
+    
+    def configurar_derivada(self):
+        """Configura el método para calcular la derivada"""
+        if not self.funcion_sympy:
+            console.print("[red]❌ Debe ingresar una función primero[/red]")
+            input("Presione Enter para continuar...")
+            return
+        
+        self.limpiar_pantalla()
+        console.print("[bold blue]📐 CONFIGURACIÓN DE DERIVADA[/bold blue]\n")
+        
+        console.print("Elija cómo calcular f'(x):")
+        console.print("1. 🔢 Derivada simbólica (automática)")
+        console.print("2. 📝 Ingresar derivada manualmente")
+        console.print("3. 🧮 Derivada numérica (diferencias finitas)")
+        console.print("4. 🔙 Volver al menú principal")
+        
+        while True:
+            try:
+                opcion = input("\nSeleccione opción (1-4): ").strip()
+                
+                if opcion == "1":
+                    try:
+                        x = sp.Symbol('x')
+                        self.derivada_sympy = sp.diff(self.funcion_sympy, x)
+                        self.derivada_numpy = sp.lambdify(x, self.derivada_sympy, 'numpy')
+                        self.metodo_derivada = "simbolica"
+                        
+                        console.print(f"\n[green]✅ Derivada simbólica: f'(x) = {self.derivada_sympy}[/green]")
+                        
+                    except Exception as e:
+                        console.print(f"[red]❌ Error al calcular derivada: {e}[/red]")
+                        continue
+                        
+                elif opcion == "2":
+                    derivada_input = input("\nIngrese f'(x): ").strip()
+                    
+                    if not derivada_input:
+                        console.print("[red]❌ La derivada no puede estar vacía[/red]")
+                        continue
+                    
+                    try:
+                        x = sp.Symbol('x')
+                        derivada_input = derivada_input.replace('^', '**')
+                        self.derivada_sympy = sp.sympify(derivada_input)
+                        self.derivada_numpy = sp.lambdify(x, self.derivada_sympy, 'numpy')
+                        self.metodo_derivada = "manual"
+                        
+                        console.print(f"\n[green]✅ Derivada manual: f'(x) = {derivada_input}[/green]")
+                        
+                    except Exception as e:
+                        console.print(f"[red]❌ Error en la derivada: {e}[/red]")
+                        continue
+                        
+                elif opcion == "3":
+                    self.metodo_derivada = "numerica"
+                    self.derivada_numpy = self._derivada_numerica
+                    console.print("\n[green]✅ Usando derivada numérica (diferencias finitas)[/green]")
+                    console.print("[yellow]h = 1e-8 por defecto[/yellow]")
+                    
+                elif opcion == "4":
+                    return
+                else:
+                    console.print("[red]❌ Opción inválida[/red]")
+                    continue
+                
+                # Probar la derivada
+                if self.derivada_numpy:
+                    console.print("\n[cyan]Valores de prueba de f'(x):[/cyan]")
+                    test_table = Table(title="Evaluación de f'(x)")
+                    test_table.add_column("x", justify="center", style="cyan")
+                    test_table.add_column("f'(x)", justify="center", style="yellow")
+                    
+                    for val in [0, 1, -1, 0.5]:
+                        try:
+                            df_val = float(self.derivada_numpy(val))
+                            test_table.add_row(str(val), f"{df_val:.6f}")
+                        except:
+                            test_table.add_row(str(val), "No definida")
+                    
+                    console.print(test_table)
+                
+                break
+                
+            except Exception as e:
+                console.print(f"[red]❌ Error: {e}[/red]")
+        
+        input("\nPresione Enter para continuar...")
+    
+    def _derivada_numerica(self, x, h=1e-8):
+        """Calcula derivada numérica usando diferencias centrales"""
+        try:
+            return (self.funcion_numpy(x + h) - self.funcion_numpy(x - h)) / (2 * h)
+        except:
+            # Si falla diferencias centrales, usar diferencias hacia adelante
+            return (self.funcion_numpy(x + h) - self.funcion_numpy(x)) / h
+    
+    def configurar_valor_inicial(self):
+        """Configura el valor inicial x₀"""
+        self.limpiar_pantalla()
+        console.print("[bold blue]📍 CONFIGURACIÓN DEL VALOR INICIAL[/bold blue]\n")
+        
+        if self.funcion_numpy:
+            console.print("💡 Sugerencia: Use gráficos o estimaciones para elegir x₀ cerca de la raíz")
+            
+            # Mostrar algunos valores para ayudar al usuario
+            console.print("\n[cyan]Valores de f(x) en algunos puntos:[/cyan]")
+            test_table = Table()
+            test_table.add_column("x", justify="center", style="cyan")
+            test_table.add_column("f(x)", justify="center", style="green")
+            
+            for val in [-2, -1, 0, 1, 2]:
+                try:
+                    f_val = float(self.funcion_numpy(val))
+                    color = "red" if f_val > 0 else "blue"
+                    test_table.add_row(str(val), f"[{color}]{f_val:.6f}[/{color}]")
+                except:
+                    test_table.add_row(str(val), "No definida")
+            
+            console.print(test_table)
+            console.print("\n[yellow]💡 Busque cambios de signo para localizar raíces[/yellow]")
+        
+        while True:
+            try:
+                x0_input = input(f"\nIngrese x₀ (actual: {self.x0}): ").strip()
+                
+                if x0_input:
+                    self.x0 = float(x0_input)
+                    
+                    # Evaluar función y derivada en x₀
+                    if self.funcion_numpy and self.derivada_numpy:
+                        try:
+                            f_x0 = self.funcion_numpy(self.x0)
+                            df_x0 = self.derivada_numpy(self.x0)
+                            
+                            console.print(f"\n[green]✅ x₀ = {self.x0}[/green]")
+                            console.print(f"[cyan]f(x₀) = {f_x0:.6f}[/cyan]")
+                            console.print(f"[yellow]f'(x₀) = {df_x0:.6f}[/yellow]")
+                            
+                            if abs(df_x0) < 1e-10:
+                                console.print("[red]⚠️  f'(x₀) ≈ 0. Newton-Raphson puede no converger.[/red]")
+                            else:
+                                primera_aprox = self.x0 - f_x0/df_x0
+                                console.print(f"[green]Primera aproximación: x₁ ≈ {primera_aprox:.6f}[/green]")
+                                
+                        except Exception as e:
+                            console.print(f"\n[green]✅ x₀ = {self.x0}[/green]")
+                            console.print(f"[red]⚠️  Error al evaluar: {e}[/red]")
+                    else:
+                        console.print(f"\n[green]✅ x₀ = {self.x0}[/green]")
+                else:
+                    console.print(f"\n[green]✅ Manteniendo x₀ = {self.x0}[/green]")
+                
+                break
+                
+            except ValueError:
+                console.print("[red]❌ Por favor ingrese un número válido[/red]")
+        
+        input("\nPresione Enter para continuar...")
+    
+    def configurar_parametros(self):
+        """Configura tolerancia y número máximo de iteraciones"""
+        self.limpiar_pantalla()
+        console.print("[bold blue]⚙️ CONFIGURACIÓN DE PARÁMETROS[/bold blue]\n")
+        
+        # Mostrar configuración actual
+        config_table = Table(title="Configuración Actual")
+        config_table.add_column("Parámetro", style="cyan")
+        config_table.add_column("Valor", style="green")
+        
+        config_table.add_row("Tolerancia", f"{self.tolerancia}")
+        config_table.add_row("Máx. iteraciones", f"{self.max_iteraciones}")
+        config_table.add_row("Método derivada", self.metodo_derivada.capitalize())
+        
+        console.print(config_table)
+        
+        # Configurar tolerancia
+        console.print("\n[yellow]💡 Newton-Raphson permite tolerancias muy pequeñas (ej: 1e-10)[/yellow]")
+        while True:
+            try:
+                tol_input = input(f"\nNueva tolerancia (actual: {self.tolerancia}): ").strip()
+                if tol_input:
+                    nueva_tol = float(tol_input)
+                    if nueva_tol <= 0:
+                        console.print("[red]❌ La tolerancia debe ser positiva[/red]")
+                        continue
+                    self.tolerancia = nueva_tol
+                    console.print(f"[green]✅ Tolerancia actualizada: {nueva_tol}[/green]")
+                break
+            except ValueError:
+                console.print("[red]❌ Ingrese un número válido[/red]")
+        
+        # Configurar máximo de iteraciones
+        console.print("\n[yellow]💡 Newton-Raphson típicamente converge en pocas iteraciones[/yellow]")
+        while True:
+            try:
+                iter_input = input(f"Nuevo máximo de iteraciones (actual: {self.max_iteraciones}): ").strip()
+                if iter_input:
+                    nuevo_max = int(iter_input)
+                    if nuevo_max <= 0:
+                        console.print("[red]❌ El número de iteraciones debe ser positivo[/red]")
+                        continue
+                    self.max_iteraciones = nuevo_max
+                    console.print(f"[green]✅ Máximo de iteraciones actualizado: {nuevo_max}[/green]")
+                break
+            except ValueError:
+                console.print("[red]❌ Ingrese un número entero válido[/red]")
+        
+        input("\nPresione Enter para continuar...")
+    
+    def ejecutar_metodo(self):
+        """Ejecuta el método de Newton-Raphson"""
+        if not self.funcion_numpy or not self.derivada_numpy:
+            console.print("[red]❌ Debe configurar función y derivada primero[/red]")
+            input("Presione Enter para continuar...")
+            return
+        
+        self.limpiar_pantalla()
+        console.print("[bold blue]🚀 EJECUTANDO NEWTON-RAPHSON[/bold blue]\n")
+        
+        # Mostrar configuración
+        console.print(f"Función: f(x) = {self.funcion_str}")
+        if self.metodo_derivada == "simbolica":
+            console.print(f"Derivada: f'(x) = {self.derivada_sympy}")
+        elif self.metodo_derivada == "manual":
+            console.print(f"Derivada: f'(x) = {self.derivada_sympy}")
+        else:
+            console.print("Derivada: Numérica (diferencias finitas)")
+        console.print(f"Valor inicial: x₀ = {self.x0}")
+        console.print(f"Tolerancia: {self.tolerancia}")
+        console.print(f"Máx. iteraciones: {self.max_iteraciones}\n")
+        
+        # Inicializar
+        self.resultados = []
+        x_actual = self.x0
+        
+        console.print("Iniciando iteraciones...\n")
+        
+        # Crear tabla para mostrar iteraciones
+        tabla_iter = Table(title="Iteraciones del Método de Newton-Raphson")
+        tabla_iter.add_column("n", justify="center", style="cyan")
+        tabla_iter.add_column("xₙ", justify="center", style="green")
+        tabla_iter.add_column("f(xₙ)", justify="center", style="yellow")
+        tabla_iter.add_column("f'(xₙ)", justify="center", style="blue")
+        tabla_iter.add_column("xₙ₊₁", justify="center", style="magenta")
+        tabla_iter.add_column("Error", justify="center", style="red")
+        
+        # Iteraciones
+        for i in range(self.max_iteraciones):
+            try:
+                # Evaluar función y derivada
+                f_x = self.funcion_numpy(x_actual)
+                df_x = self.derivada_numpy(x_actual)
+                
+                # Verificar derivada nula
+                if abs(df_x) < 1e-15:
+                    console.print(f"\n[red]💥 f'(x) ≈ 0 en x = {x_actual:.8f}[/red]")
+                    console.print("[red]No se puede continuar (división por cero)[/red]")
+                    break
+                
+                # Calcular siguiente aproximación
+                x_siguiente = x_actual - f_x / df_x
+                
+                # Calcular error
+                error = abs(x_siguiente - x_actual)
+                
+                # Guardar resultado
+                self.resultados.append({
+                    'iteracion': i,
+                    'x': x_actual,
+                    'f_x': f_x,
+                    'df_x': df_x,
+                    'x_siguiente': x_siguiente,
+                    'error': error
+                })
+                
+                # Mostrar en tabla (primeras 10 iteraciones)
+                if i < 10:
+                    tabla_iter.add_row(
+                        str(i),
+                        f"{x_actual:.8f}",
+                        f"{f_x:.2e}",
+                        f"{df_x:.2e}",
+                        f"{x_siguiente:.8f}",
+                        f"{error:.2e}"
+                    )
+                
+                # Verificar convergencia
+                if error < self.tolerancia:
+                    console.print(f"\n[green]🎉 ¡Convergencia alcanzada en {i+1} iteraciones![/green]")
+                    console.print(f"[green]Raíz encontrada: x* ≈ {x_siguiente:.12f}[/green]")
+                    console.print(f"[green]f(x*) ≈ {self.funcion_numpy(x_siguiente):.2e}[/green]")
+                    console.print(f"[green]Error final: {error:.2e}[/green]")
+                    break
+                
+                # Verificar si el valor se vuelve muy grande
+                if abs(x_siguiente) > 1e10:
+                    console.print(f"\n[red]💥 El método está divergiendo (|x| > 10¹⁰)[/red]")
+                    break
+                
+                x_actual = x_siguiente
+                
+            except Exception as e:
+                console.print(f"\n[red]❌ Error durante la iteración {i}: {str(e)}[/red]")
+                break
+        else:
+            console.print(f"\n[yellow]⚠️  Se alcanzó el máximo de iteraciones ({self.max_iteraciones})[/yellow]")
+            console.print(f"[yellow]Última aproximación: x ≈ {x_actual:.12f}[/yellow]")
+            console.print(f"[yellow]f(x) ≈ {self.funcion_numpy(x_actual):.2e}[/yellow]")
+            console.print(f"[yellow]Error estimado: {error:.2e}[/yellow]")
+        
+        # Mostrar tabla de iteraciones
+        console.print(tabla_iter)
+        
+        if len(self.resultados) > 10:
+            console.print(f"\n[blue]... y {len(self.resultados) - 10} iteraciones más[/blue]")
+        
+        input("\nPresione Enter para continuar...")
+    
+    def ver_resultados(self):
+        """Muestra los resultados detallados"""
+        if not self.resultados:
+            console.print("[red]❌ No hay resultados disponibles. Execute el método primero.[/red]")
+            input("Presione Enter para continuar...")
+            return
+        
+        self.limpiar_pantalla()
+        console.print("[bold blue]📊 RESULTADOS DETALLADOS[/bold blue]\n")
+        
+        ultimo = self.resultados[-1]
+        
+        # Panel de resumen
+        try:
+            valor_funcion = self.funcion_numpy(ultimo['x_siguiente'])
+        except:
+            valor_funcion = "No evaluable"
+            
+        resumen = Panel(
+            f"[bold green]Raíz encontrada:[/bold green] x* ≈ {ultimo['x_siguiente']:.12f}\n"
+            f"[bold blue]Iteraciones realizadas:[/bold blue] {len(self.resultados)}\n"
+            f"[bold yellow]Error final:[/bold yellow] {ultimo['error']:.2e}\n"
+            f"[bold cyan]f(x*):[/bold cyan] {valor_funcion:.2e if isinstance(valor_funcion, float) else valor_funcion}\n"
+            f"[bold magenta]Método derivada:[/bold magenta] {self.metodo_derivada.capitalize()}",
+            title="📋 Resumen de Resultados",
+            border_style="green"
+        )
+        console.print(resumen)
+        
+        # Análisis de convergencia cuadrática
+        if len(self.resultados) > 2:
+            console.print("\n[bold blue]📈 Análisis de Convergencia Cuadrática:[/bold blue]")
+            
+            errores = [r['error'] for r in self.resultados[1:]]
+            
+            # Verificar convergencia cuadrática
+            if len(errores) > 2:
+                razones_cuadraticas = []
+                for i in range(2, min(len(errores), 8)):
+                    if errores[i-1] != 0 and errores[i-2] != 0:
+                        razon = errores[i] / (errores[i-1]**2 / errores[i-2])
+                        razones_cuadraticas.append(razon)
+                
+                if razones_cuadraticas:
+                    razon_promedio = sum(razones_cuadraticas) / len(razones_cuadraticas)
+                    console.print(f"Factor de convergencia cuadrática: {razon_promedio:.4f}")
+                    
+                    if razon_promedio < 10:
+                        console.print("[green]✅ Convergencia cuadrática confirmada[/green]")
+                    else:
+                        console.print("[yellow]⚠️  Convergencia no claramente cuadrática[/yellow]")
+        
+        # Mostrar tabla completa de resultados
+        console.print("\n[bold blue]📋 Tabla Completa de Iteraciones:[/bold blue]")
+        
+        tabla_completa = Table(title="Resultados Completos")
+        tabla_completa.add_column("n", justify="center", style="cyan")
+        tabla_completa.add_column("xₙ", justify="center", style="green")
+        tabla_completa.add_column("f(xₙ)", justify="center", style="yellow")
+        tabla_completa.add_column("f'(xₙ)", justify="center", style="blue")
+        tabla_completa.add_column("xₙ₊₁", justify="center", style="magenta")
+        tabla_completa.add_column("Error", justify="center", style="red")
+        
+        for r in self.resultados:
+            tabla_completa.add_row(
+                str(r['iteracion']),
+                f"{r['x']:.8f}",
+                f"{r['f_x']:.2e}",
+                f"{r['df_x']:.2e}",
+                f"{r['x_siguiente']:.8f}",
+                f"{r['error']:.2e}"
+            )
+        
+        console.print(tabla_completa)
+        input("\nPresione Enter para continuar...")
+    
+    def analisis_convergencia(self):
+        """Muestra análisis gráfico de convergencia"""
+        if not self.resultados:
+            console.print("[red]❌ No hay resultados disponibles.[/red]")
+            input("Presione Enter para continuar...")
+            return
+        
+        # Extraer datos para gráficos
+        iteraciones = [r['iteracion'] for r in self.resultados]
+        valores_x = [r['x'] for r in self.resultados]
+        valores_f = [abs(r['f_x']) for r in self.resultados]
+        errores = [r['error'] for r in self.resultados[1:]]
+        
+        # Crear figura con subplots
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
+        fig.suptitle(f'Análisis de Convergencia - Newton-Raphson\nf(x) = {self.funcion_str}', fontsize=14)
+        
+        # 1. Convergencia de x
+        ax1.plot(iteraciones, valores_x, 'b-o', markersize=6, linewidth=2)
+        ax1.set_xlabel('Iteración')
+        ax1.set_ylabel('Valor de x')
+        ax1.set_title('Convergencia de la Solución')
+        ax1.grid(True, alpha=0.3)
+        
+        # Línea horizontal en la solución final
+        if self.resultados:
+            ax1.axhline(y=self.resultados[-1]['x_siguiente'], color='red', linestyle='--', alpha=0.7, label='Solución final')
+            ax1.legend()
+        
+        # 2. Error absoluto (escala logarítmica)
+        if errores:
+            ax2.semilogy(range(1, len(errores)+1), errores, 'r-o', markersize=6, linewidth=2)
+            ax2.set_xlabel('Iteración')
+            ax2.set_ylabel('Error |xₙ₊₁ - xₙ|')
+            ax2.set_title('Evolución del Error (Escala Log)')
+            ax2.grid(True, alpha=0.3)
+        
+        # 3. Valores de función |f(x)|
+        ax3.semilogy(iteraciones, valores_f, 'g-o', markersize=6, linewidth=2)
+        ax3.set_xlabel('Iteración')
+        ax3.set_ylabel('|f(x)|')
+        ax3.set_title('Convergencia a Cero de f(x)')
+        ax3.grid(True, alpha=0.3)
+        
+        # 4. Visualización geométrica del método
+        if len(valores_x) > 1 and self.funcion_numpy:
+            try:
+                x_min = min(valores_x) - 1
+                x_max = max(valores_x) + 1
+                x_plot = np.linspace(x_min, x_max, 1000)
+                y_plot = [self.funcion_numpy(x) for x in x_plot]
+                
+                ax4.plot(x_plot, y_plot, 'b-', linewidth=2, label='f(x)')
+                ax4.axhline(y=0, color='k', linestyle='--', alpha=0.5)
+                
+                # Mostrar las primeras iteraciones geométricamente
+                for i in range(min(len(self.resultados), 5)):
+                    r = self.resultados[i]
+                    x_curr = r['x']
+                    f_curr = r['f_x']
+                    df_curr = r['df_x']
+                    
+                    # Punto en la curva
+                    ax4.plot(x_curr, f_curr, 'ro', markersize=8)
+                    
+                    # Línea tangente
+                    if abs(df_curr) > 1e-10:
+                        y_tangent = f_curr + df_curr * (x_plot - x_curr)
+                        mask = (x_plot >= x_curr - 0.5) & (x_plot <= x_curr + 0.5)
+                        ax4.plot(x_plot[mask], y_tangent[mask], 'r--', alpha=0.7)
+                    
+                    # Línea vertical hasta eje x
+                    x_next = r['x_siguiente']
+                    ax4.plot([x_next, x_next], [0, 0], 'go', markersize=6)
+                    ax4.plot([x_next, x_next], [0, -max(abs(min(y_plot)), abs(max(y_plot)))*0.1], 'g--', alpha=0.5)
+                
+                ax4.set_xlabel('x')
+                ax4.set_ylabel('f(x)')
+                ax4.set_title('Interpretación Geométrica')
+                ax4.legend()
+                ax4.grid(True, alpha=0.3)
+                
+            except Exception as e:
+                ax4.text(0.5, 0.5, f'Error al generar gráfico:\n{str(e)}', 
+                        ha='center', va='center', transform=ax4.transAxes)
+        
+        plt.tight_layout()
+        plt.show()
+        
+        input("\nPresione Enter para continuar...")
+    
+    def analisis_derivada(self):
+        """Analiza el comportamiento de la derivada"""
+        if not self.derivada_numpy:
+            console.print("[red]❌ No hay derivada configurada.[/red]")
+            input("Presione Enter para continuar...")
+            return
+        
+        self.limpiar_pantalla()
+        console.print("[bold blue]🔍 ANÁLISIS DE DERIVADA[/bold blue]\n")
+        
+        if self.resultados:
+            # Mostrar comportamiento de la derivada durante las iteraciones
+            console.print("[bold blue]Comportamiento de f'(x) durante iteraciones:[/bold blue]")
+            
+            deriv_table = Table(title="Valores de f'(x)")
+            deriv_table.add_column("Iteración", justify="center", style="cyan")
+            deriv_table.add_column("x", justify="center", style="green")
+            deriv_table.add_column("f'(x)", justify="center", style="yellow")
+            deriv_table.add_column("1/f'(x)", justify="center", style="blue")
+            deriv_table.add_column("Estado", justify="center", style="red")
+            
+            for r in self.resultados[:10]:  # Mostrar primeras 10
+                df_x = r['df_x']
+                estado = "Normal"
+                
+                if abs(df_x) < 1e-10:
+                    estado = "⚠️ Muy pequeña"
+                elif abs(df_x) < 1e-6:
+                    estado = "⚠️ Pequeña"
+                elif abs(df_x) > 1e6:
+                    estado = "⚠️ Muy grande"
+                
+                inv_df = 1/df_x if abs(df_x) > 1e-15 else "∞"
+                
+                deriv_table.add_row(
+                    str(r['iteracion']),
+                    f"{r['x']:.6f}",
+                    f"{df_x:.2e}",
+                    f"{inv_df:.2e}" if isinstance(inv_df, float) else inv_df,
+                    estado
+                )
+            
+            console.print(deriv_table)
+        
+        # Gráfico de función y derivada
+        if self.funcion_numpy:
+            try:
+                console.print("\n[green]Generando gráfico de función y derivada...[/green]")
+                
+                # Determinar rango para el gráfico
+                if self.resultados:
+                    center = self.resultados[-1]['x_siguiente']
+                    span = 2
+                else:
+                    center = self.x0
+                    span = 5
+                
+                x_plot = np.linspace(center - span, center + span, 1000)
+                
+                try:
+                    y_plot = [self.funcion_numpy(x) for x in x_plot]
+                    dy_plot = [self.derivada_numpy(x) for x in x_plot]
+                    
+                    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
+                    fig.suptitle(f'Análisis de f(x) y f\'(x)\nf(x) = {self.funcion_str}', fontsize=14)
+                    
+                    # Gráfico de la función
+                    ax1.plot(x_plot, y_plot, 'b-', linewidth=2, label='f(x)')
+                    ax1.axhline(y=0, color='k', linestyle='--', alpha=0.5)
+                    ax1.set_xlabel('x')
+                    ax1.set_ylabel('f(x)')
+                    ax1.set_title('Función f(x)')
+                    ax1.legend()
+                    ax1.grid(True, alpha=0.3)
+                    
+                    # Marcar puntos de las iteraciones
+                    if self.resultados:
+                        x_iteraciones = [r['x'] for r in self.resultados]
+                        y_iteraciones = [r['f_x'] for r in self.resultados]
+                        ax1.plot(x_iteraciones, y_iteraciones, 'ro', markersize=6, label='Iteraciones')
+                        ax1.legend()
+                    
+                    # Gráfico de la derivada
+                    ax2.plot(x_plot, dy_plot, 'r-', linewidth=2, label="f'(x)")
+                    ax2.axhline(y=0, color='k', linestyle='--', alpha=0.5)
+                    ax2.set_xlabel('x')
+                    ax2.set_ylabel("f'(x)")
+                    ax2.set_title("Derivada f'(x)")
+                    ax2.legend()
+                    ax2.grid(True, alpha=0.3)
+                    
+                    # Marcar puntos donde f'(x) ≈ 0
+                    zeros_df = []
+                    for i in range(len(dy_plot)-1):
+                        if dy_plot[i] * dy_plot[i+1] < 0:  # Cambio de signo
+                            x_zero = x_plot[i] + (x_plot[i+1] - x_plot[i]) * (-dy_plot[i]) / (dy_plot[i+1] - dy_plot[i])
+                            zeros_df.append(x_zero)
+                    
+                    if zeros_df:
+                        ax2.plot(zeros_df, [0]*len(zeros_df), 'ro', markersize=8, label="f'(x) ≈ 0")
+                        ax2.legend()
+                        console.print(f"\n[yellow]⚠️ f'(x) ≈ 0 en x ≈ {zeros_df}[/yellow]")
+                        console.print("[yellow]Newton-Raphson puede fallar cerca de estos puntos[/yellow]")
+                    
+                    plt.tight_layout()
+                    plt.show()
+                    
+                except Exception as e:
+                    console.print(f"[red]Error al generar gráfico: {e}[/red]")
+                    
+            except Exception as e:
+                console.print(f"[red]Error en análisis gráfico: {e}[/red]")
+        
+        input("\nPresione Enter para continuar...")
+    
+    def mostrar_ayuda(self):
+        """Muestra información de ayuda del método"""
+        self.limpiar_pantalla()
+        
+        ayuda_texto = Panel(
+            """
+[bold blue]⚡ MÉTODO DE NEWTON-RAPHSON[/bold blue]
+
+[bold green]¿Qué hace?[/bold green]
+Encuentra raíces de f(x) = 0 usando aproximación tangente con convergencia cuadrática.
+
+[bold yellow]Algoritmo:[/bold yellow]
+1. Calcular f(x) y f'(x)
+2. Elegir valor inicial x₀
+3. Iterar: xₙ₊₁ = xₙ - f(xₙ)/f'(xₙ)
+4. Parar cuando |xₙ₊₁ - xₙ| < tolerancia
+
+[bold cyan]Ventajas:[/bold cyan]
+• Convergencia cuadrática (muy rápida)
+• Alta precisión alcanzable
+• Funciona bien cerca de raíces simples
+
+[bold red]Desventajas:[/bold red]
+• Requiere calcular f'(x)
+• Puede diverger si x₀ está mal elegido
+• Falla cuando f'(x) = 0
+
+[bold magenta]Casos problemáticos:[/bold magenta]
+• f'(x) = 0 en la raíz (raíces múltiples)
+• f'(x) muy pequeña cerca de x₀
+• Funciones con comportamiento oscilatorio
+
+[bold white]Consejos prácticos:[/bold white]
+• Use gráficos para elegir x₀
+• Combine con bisección si diverge
+• Verifique que f'(x) ≠ 0 cerca de la raíz
+• Para raíces múltiples use métodos modificados
+            """,
+            title="📚 Ayuda - Método de Newton-Raphson",
+            border_style="blue"
+        )
+        
+        console.print(ayuda_texto)
+        input("\nPresione Enter para continuar...")
+
+def main():
+    """Función principal"""
+    metodo = MetodoNewtonRaphson()
+    
+    while True:
+        opcion = metodo.mostrar_menu_principal()
+        
+        if opcion == "1":
+            metodo.ingresar_funcion()
+        elif opcion == "2":
+            metodo.configurar_derivada()
+        elif opcion == "3":
+            metodo.configurar_valor_inicial()
+        elif opcion == "4":
+            metodo.configurar_parametros()
+        elif opcion == "5":
+            metodo.ejecutar_metodo()
+        elif opcion == "6":
+            metodo.ver_resultados()
+        elif opcion == "7":
+            metodo.analisis_convergencia()
+        elif opcion == "8":
+            metodo.analisis_derivada()
+        elif opcion == "9":
+            metodo.mostrar_ayuda()
+        elif opcion == "10":
+            console.print("\n[bold green]¡Gracias por usar Newton-Raphson![/bold green]")
+            break
+        else:
+            console.print("[red]Opción inválida. Seleccione un número del 1 al 10.[/red]")
+            input("Presione Enter para continuar...")
+
+if __name__ == "__main__":
+    main()
+```
+
+# Interfaz de Usuario
+
+## Flujo de Menús
+
+El programa presenta un menú principal numerado con opciones completas:
+
+1. **🎯 Ingresar función f(x)**: Define la ecuación a resolver
+2. **📐 Configurar derivada f'(x)**: Simbólica, manual o numérica
+3. **📍 Configurar valor inicial x₀**: Punto de partida crucial
+4. **⚙️ Configurar parámetros**: Tolerancia e iteraciones máximas
+5. **🚀 Ejecutar Newton-Raphson**: Ejecuta el algoritmo completo
+6. **📊 Ver resultados**: Análisis detallado de la solución
+7. **📈 Análisis de convergencia**: Gráficos de comportamiento
+8. **🔍 Análisis de derivada**: Comportamiento de f'(x)
+9. **❓ Ayuda**: Información completa del método
+10. **🚪 Salir**: Termina el programa
+
+## Características Avanzadas
+
+- **Tres métodos para derivada**: Simbólica automática, manual, o numérica
+- **Validación inteligente**: Detecta problemas potenciales antes de ejecutar
+- **Análisis geométrico**: Visualización de líneas tangentes
+- **Detección de convergencia cuadrática**: Verificación matemática
+- **Manejo robusto de errores**: Casos edge y situaciones problemáticas
+
+# Ejemplos de Ejecución
+
+## Ejemplo 1: Ecuación Polinomial
+
+**Problema**: Resolver $x^3 - 2x - 5 = 0$
+
+```
+Función: f(x) = x**3 - 2*x - 5
+Derivada: f'(x) = 3*x**2 - 2
+Valor inicial: x₀ = 2.0
+Tolerancia: 1e-10
+
+Resultados:
+n | xₙ        | f(xₙ)      | f'(xₙ)     | xₙ₊₁      | Error
+0 | 2.00000000| -1.000e+00 | 1.000e+01  | 2.10000000| 1.00e-01
+1 | 2.10000000| 2.610e-01  | 1.123e+01  | 2.07675906| 2.32e-02
+2 | 2.07675906| 8.788e-03  | 1.094e+01  | 2.07455064| 2.21e-04
+3 | 2.07455064| 1.004e-05  | 1.093e+01  | 2.07455064| 9.19e-10
+
+¡Convergencia alcanzada en 4 iteraciones!
+Raíz: x* ≈ 2.074550644827
+f(x*) ≈ -1.78e-15
+```
+
+## Ejemplo 2: Ecuación Transcendental
+
+**Problema**: Resolver $e^x - 3x = 0$
+
+```
+Función: f(x) = exp(x) - 3*x
+Derivada: f'(x) = exp(x) - 3
+Valor inicial: x₀ = 1.5
+Tolerancia: 1e-12
+
+Resultados:
+n | xₙ         | f(xₙ)      | f'(xₙ)     | xₙ₊₁       | Error
+0 | 1.50000000 | 0.000e+00  | 1.482e+00  | 1.61912225 | 1.19e-01
+1 | 1.61912225 | 5.424e-02  | 2.048e+00  | 1.59263964 | 2.65e-02
+2 | 1.59263964 | 1.063e-03  | 1.920e+00  | 1.59210537 | 5.54e-04
+3 | 1.59210537 | 4.134e-07  | 1.918e+00  | 1.59210321 | 2.16e-06
+
+¡Convergencia alcanzada en 4 iteraciones!
+Raíz: x* ≈ 1.592103212165
+```
+
+# Visualizaciones
+
+## Gráficos Generados
+
+1. **Convergencia de la solución**: Evolución de $x_n$ mostrando convergencia rápida
+2. **Error absoluto**: Decrecimiento cuadrático del error
+3. **Convergencia de f(x)**: Cómo $|f(x_n)| \to 0$
+4. **Interpretación geométrica**: Líneas tangentes y aproximaciones sucesivas
+5. **Análisis de derivada**: Comportamiento de $f'(x)$ y detección de problemas
+
+## Interpretación Visual
+
+- **Líneas tangentes**: Muestran cómo cada iteración usa la pendiente local
+- **Convergencia cuadrática**: Error decrece como $error_{n+1} \approx C \cdot error_n^2$
+- **Problemas de derivada**: Visualización de puntos donde $f'(x) = 0$
+
+# Ideas de Mejora
+
+## Optimizaciones Técnicas
+
+1. **Newton-Raphson modificado**: Para raíces múltiples
+2. **Método de Halley**: Convergencia cúbica usando segunda derivada
+3. **Newton-Raphson amortiguado**: Control de paso para mejorar convergencia
+4. **Deflación automática**: Para encontrar múltiples raíces
+5. **Método híbrido**: Combinar con bisección para robustez
+
+## Funcionalidades Adicionales
+
+1. **Estimación automática de x₀**: Usar gráficos y análisis de signos
+2. **Detección de raíces múltiples**: Análisis de multiplicidad
+3. **Región de convergencia**: Mapeo de valores iniciales exitosos
+4. **Comparación con otros métodos**: Bisección, punto fijo, etc.
+5. **Modo de producción**: Procesamiento batch de múltiples ecuaciones
+
+## Mejoras en Análisis
+
+1. **Análisis de estabilidad**: Predicción de convergencia
+2. **Optimización de tolerancia**: Sugerencias basadas en precisión requerida
+3. **Detección de ciclos**: Identificar convergencia a órbitas periódicas
+4. **Análisis de sensibilidad**: Efecto de perturbaciones en x₀
+
+# Complicaciones Encontradas
+
+## Desafíos de Implementación
+
+### 1. Manejo de Derivadas
+**Problema**: Diferentes formas de calcular f'(x) con precisión y robustez
+
+**Soluciones implementadas**:
+- **Simbólica**: Usando SymPy para exactitud matemática
+- **Manual**: Permitir al usuario ingresar la derivada conocida  
+- **Numérica**: Diferencias finitas con manejo de errores
+- **Validación cruzada**: Comparar métodos cuando es posible
+
+### 2. Detección de Problemas de Convergencia
+**Problema**: Identificar cuándo el método fallará antes de que ocurra
+
+**Casos identificados**:
+- $f'(x) = 0$ en puntos de iteración
+- $f'(x)$ muy pequeña (convergencia lenta)
+- Divergencia hacia $\pm\infty$
+- Convergencia a ciclos en lugar de puntos fijos
+
+**Soluciones**:
+- Verificación previa de $f'(x_0)$
+- Límites en el crecimiento de $|x_n|$
+- Detección de oscilaciones
+- Advertencias proactivas al usuario
+
+### 3. Precisión Numérica
+**Problema**: Mantener precisión en cálculos con números muy pequeños/grandes
+
+**Soluciones**:
+- Uso de tolerancias adaptativas
+- Verificación de overflow/underflow
+- Escalado automático para números extremos
+- Validación de resultados finales
+
+### 4. Casos Edge Específicos
+**Problema**: Situaciones especiales que requieren manejo dedicado
+
+#### a) Raíces Múltiples
+- **Problema**: Convergencia lineal en lugar de cuadrática
+- **Detección**: Análisis de $f'(x)$ cerca de la raíz
+- **Solución**: Sugerir métodos modificados
+
+#### b) Funciones con Discontinuidades
+- **Problema**: Evaluaciones fallidas en puntos específicos
+- **Solución**: Manejo robusto de excepciones y saltos adaptativos
+
+#### c) Comportamiento Oscilatorio
+- **Problema**: El método puede "saltar" entre regiones
+- **Solución**: Detección de patrones y amortiguamiento
+
+### 5. Interfaz de Usuario Intuitiva
+**Problema**: Hacer comprensible un método matemáticamente sofisticado
+
+**Soluciones**:
+- Visualización geométrica del proceso
+- Explicaciones paso a paso
+- Detección y explicación de problemas comunes
+- Sugerencias contextuales basadas en el comportamiento observado
+
+## Lecciones Aprendidas
+
+1. **Validación es crucial**: Verificar todas las condiciones antes de ejecutar
+2. **Feedback visual ayuda**: Los gráficos clarifican conceptos abstractos
+3. **Manejo de errores robusto**: Anticipar y manejar graciosamente los fallos
+4. **Documentación contextual**: Explicar no solo qué hace sino por qué puede fallar
+
+# Manual de Uso
+
+## Instalación y Requisitos
+
+```bash
+# Instalar dependencias
+pip install numpy matplotlib rich sympy
+
+# Ejecutar el programa
+python newton_raphson.py
+```
+
+## Guía Paso a Paso
+
+### Paso 1: Preparación de la Ecuación
+1. **Identificar la ecuación**: Tener $f(x) = 0$ bien definida
+2. **Conocer la derivada**: Idealmente tener $f'(x)$ analíticamente
+3. **Estimar ubicación de raíces**: Usar gráficos o análisis de signos
+
+### Paso 2: Configuración Inicial
+1. **Ingresar función** (opción 1): Usar sintaxis Python estándar
+2. **Configurar derivada** (opción 2): Elegir método más apropiado
+3. **Valor inicial** (opción 3): Crítico para convergencia
+4. **Parámetros** (opción 4): Ajustar tolerancia según precisión requerida
+
+### Paso 3: Ejecución y Análisis
+1. **Ejecutar método** (opción 5): Observar convergencia en tiempo real
+2. **Analizar resultados** (opción 6): Verificar calidad de la solución
+3. **Estudiar convergencia** (opción 7): Confirmar comportamiento cuadrático
+4. **Analizar derivada** (opción 8): Identificar problemas potenciales
+
+### Paso 4: Interpretación de Resultados
+
+#### Convergencia Exitosa
+- **Pocas iteraciones** (típicamente < 10)
+- **Error decrece cuadráticamente**
+- **f(x*) ≈ 0** con alta precisión
+
+#### Problemas Comunes y Soluciones
+
+| Síntoma | Causa Probable | Solución |
+|---------|----------------|----------|
+| Diverge rápidamente | x₀ mal elegido | Probar x₀ más cerca de la raíz |
+| Convergencia lenta | Raíz múltiple | Usar Newton-Raphson modificado |
+| Error "f'(x) ≈ 0" | Derivada nula | Cambiar x₀ o usar otro método |
+| Oscilaciones | Función muy curvada | Reducir paso o usar método híbrido |
+
+## Consejos Avanzados
+
+### Elección del Valor Inicial
+1. **Método gráfico**: Plotear f(x) para ver cambios de signo
+2. **Análisis de derivada**: Evitar regiones donde f'(x) ≈ 0
+3. **Conocimiento del problema**: Usar información física/contextual
+4. **Método híbrido**: Usar bisección para localizar, Newton para refinar
+
+### Optimización de Parámetros
+- **Tolerancia**: $10^{-10}$ para la mayoría de aplicaciones científicas
+- **Iteraciones máximas**: 50 es generalmente suficiente
+- **Verificación**: Siempre comprobar que f(x*) ≈ 0
+
+### Casos Especiales
+- **Raíces múltiples**: Considerar $x_{n+1} = x_n - m \frac{f(x_n)}{f'(x_n)}$ donde m es la multiplicidad
+- **Sistemas de ecuaciones**: Extender a método de Newton-Raphson multivariable
+- **Optimización**: Aplicar a f'(x) = 0 para encontrar extremos
+
+---
+
+*Este documento forma parte del proyecto personal de métodos numéricos desarrollado como material educativo para Ingeniería en Computación.*

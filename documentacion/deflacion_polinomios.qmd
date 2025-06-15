@@ -1,0 +1,950 @@
+---
+title: "Deflación de Polinomios"
+author: "Proyecto Personal - Ingeniería en Computación"  
+date: today
+format: 
+  html:
+    theme: cosmo
+    code-fold: true
+    toc: true
+    number-sections: true
+    highlight-style: github
+    fig-width: 10
+    fig-height: 6
+    embed-resources: true
+execute:
+  warning: false
+  echo: true
+---
+
+# ¿Para qué sirve?
+
+La deflación de polinomios es una técnica fundamental que permite reducir el grado de un polinomio una vez que se ha encontrado una raíz. Esta técnica es esencial para encontrar múltiples raíces de un polinomio de manera sistemática.
+
+## Aplicaciones Prácticas
+
+- **Factorización completa**: Descomponer polinomios en factores lineales
+- **Sistemas de control**: Análisis de polos y ceros de funciones de transferencia
+- **Procesamiento de señales**: Diseño de filtros digitales
+- **Análisis numérico**: Combinación con métodos de búsqueda de raíces
+- **Álgebra computacional**: Simplificación de expresiones polinomiales
+
+## Ventajas del Método
+
+1. **Reducción sistemática**: Convierte un problema de grado n en uno de grado n-1
+2. **Eficiencia**: Evita buscar raíces ya encontradas
+3. **Versatilidad**: Funciona con cualquier raíz conocida
+4. **Combinable**: Se integra perfectamente con otros métodos
+5. **Exactitud**: Matemáticamente exacto (sin errores de método)
+
+## Limitaciones
+
+- Propagación de errores de redondeo
+- Pérdida de precisión en raíces múltiples
+- Requiere conocer al menos una raíz previamente
+- Inestabilidad numérica con raíces muy cercanas
+
+# ¿Cómo funciona?
+
+La deflación se basa en el **Teorema del Factor**: si $r$ es una raíz de un polinomio $P(x)$, entonces $(x - r)$ es un factor de $P(x)$, y por tanto:
+
+$$P(x) = (x - r) \cdot Q(x)$$
+
+donde $Q(x)$ es un polinomio de grado menor en uno.
+
+## Algoritmo Paso a Paso
+
+1. **Entrada**: Polinomio $P(x)$ de grado $n$ y una raíz conocida $r$
+2. **División sintética**: Dividir $P(x)$ entre $(x - r)$
+3. **Obtener cociente**: El resultado $Q(x)$ tiene grado $n-1$
+4. **Verificar residuo**: Debe ser cero (o muy pequeño por errores numéricos)
+5. **Polinomio reducido**: $Q(x)$ no contiene la raíz $r$
+
+## División Sintética
+
+Para un polinomio $P(x) = a_n x^n + a_{n-1} x^{n-1} + \cdots + a_1 x + a_0$ y raíz $r$:
+
+```
+Coeficientes: [an, an-1, an-2, ..., a1, a0]
+Raíz: r
+
+Proceso:
+b_n = a_n
+b_{n-1} = a_{n-1} + r * b_n  
+b_{n-2} = a_{n-2} + r * b_{n-1}
+...
+b_1 = a_1 + r * b_2
+b_0 = a_0 + r * b_1  (este debe ser ≈ 0)
+
+Resultado: Q(x) = b_n x^{n-1} + b_{n-1} x^{n-2} + ... + b_1
+```
+
+# Implementación completa
+
+```python
+#!/usr/bin/env python3
+"""
+Deflación de Polinomios - Implementación con menús interactivos
+Reduce el grado de un polinomio usando una raíz conocida
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+import os
+from typing import List, Tuple, Optional, Union
+
+console = Console()
+
+class DeflacionPolinomios:
+    def __init__(self):
+        self.coeficientes_original = []
+        self.coeficientes_deflado = []
+        self.raiz_deflacion = 0.0
+        self.residuo = 0.0
+        self.coeficientes_cociente = []
+        self.historial_deflaciones = []
+        self.precision = 1e-12
+    
+    def division_sintetica(self, coeficientes: List[float], raiz: float) -> Tuple[List[float], float]:
+        """
+        Realiza división sintética de un polinomio entre (x - raiz)
+        
+        Args:
+            coeficientes: Coeficientes del polinomio [an, an-1, ..., a1, a0]
+            raiz: Valor de la raíz para deflación
+            
+        Returns:
+            (cociente, residuo): Coeficientes del cociente y valor del residuo
+        """
+        if not coeficientes:
+            return [], 0.0
+        
+        n = len(coeficientes)
+        cociente = [0.0] * (n - 1) if n > 1 else []
+        
+        # El primer coeficiente del cociente es igual al primer coeficiente del dividendo
+        if n > 0:
+            actual = coeficientes[0]
+            
+            # Para cada posición del cociente
+            for i in range(n - 1):
+                cociente[i] = actual
+                if i + 1 < n:
+                    actual = coeficientes[i + 1] + raiz * actual
+            
+            # El último valor calculado es el residuo
+            residuo = coeficientes[-1] + raiz * cociente[-1] if cociente else coeficientes[0]
+        else:
+            residuo = 0.0
+        
+        return cociente, residuo
+    
+    def deflacion_multiple(self, coeficientes: List[float], raices: List[float]) -> List[float]:
+        """
+        Aplica deflación múltiple con varias raíces
+        
+        Args:
+            coeficientes: Coeficientes del polinomio original
+            raices: Lista de raíces para deflación
+            
+        Returns:
+            Coeficientes del polinomio completamente deflado
+        """
+        resultado = coeficientes.copy()
+        
+        for i, raiz in enumerate(raices):
+            if len(resultado) <= 1:
+                break
+                
+            cociente, residuo = self.division_sintetica(resultado, raiz)
+            
+            # Guardar información de esta deflación
+            self.historial_deflaciones.append({
+                'paso': i + 1,
+                'raiz': raiz,
+                'grado_antes': len(resultado) - 1,
+                'grado_despues': len(cociente) - 1 if cociente else 0,
+                'residuo': residuo,
+                'coeficientes_antes': resultado.copy(),
+                'coeficientes_despues': cociente.copy()
+            })
+            
+            resultado = cociente
+            
+            # Mostrar progreso
+            console.print(f"[green]Deflación {i+1}: Raíz {raiz:.6f}, Residuo: {residuo:.2e}[/green]")
+        
+        return resultado
+    
+    def verificar_raiz(self, coeficientes: List[float], raiz: float) -> float:
+        """
+        Verifica si un valor es raíz del polinomio evaluándolo
+        
+        Args:
+            coeficientes: Coeficientes del polinomio [an, an-1, ..., a1, a0]
+            raiz: Valor a verificar
+            
+        Returns:
+            Valor del polinomio en la raíz (debe ser ≈ 0)
+        """
+        if not coeficientes:
+            return 0.0
+        
+        n = len(coeficientes) - 1
+        resultado = 0.0
+        
+        for i, coef in enumerate(coeficientes):
+            potencia = n - i
+            resultado += coef * (raiz ** potencia)
+        
+        return resultado
+    
+    def formatear_polinomio(self, coeficientes: List[float]) -> str:
+        """
+        Convierte coeficientes a representación string del polinomio
+        """
+        if not coeficientes:
+            return "0"
+        
+        n = len(coeficientes) - 1
+        terminos = []
+        
+        for i, coef in enumerate(coeficientes):
+            if abs(coef) < self.precision:
+                continue
+                
+            potencia = n - i
+            
+            # Formato del coeficiente
+            if i == 0:  # Primer término
+                if potencia == 0:
+                    terminos.append(f"{coef}")
+                elif potencia == 1:
+                    if coef == 1:
+                        terminos.append("x")
+                    elif coef == -1:
+                        terminos.append("-x")
+                    else:
+                        terminos.append(f"{coef}x")
+                else:
+                    if coef == 1:
+                        terminos.append(f"x^{potencia}")
+                    elif coef == -1:
+                        terminos.append(f"-x^{potencia}")
+                    else:
+                        terminos.append(f"{coef}x^{potencia}")
+            else:  # Términos siguientes
+                signo = "+" if coef > 0 else "-"
+                coef_abs = abs(coef)
+                
+                if potencia == 0:
+                    terminos.append(f" {signo} {coef_abs}")
+                elif potencia == 1:
+                    if coef_abs == 1:
+                        terminos.append(f" {signo} x")
+                    else:
+                        terminos.append(f" {signo} {coef_abs}x")
+                else:
+                    if coef_abs == 1:
+                        terminos.append(f" {signo} x^{potencia}")
+                    else:
+                        terminos.append(f" {signo} {coef_abs}x^{potencia}")
+        
+        return "".join(terminos) if terminos else "0"
+    
+    def ejecutar_deflacion(self) -> bool:
+        """Ejecuta el proceso de deflación"""
+        if not self.coeficientes_original:
+            console.print("[red]Error: No se han ingresado coeficientes[/red]")
+            return False
+        
+        if len(self.coeficientes_original) <= 1:
+            console.print("[red]Error: El polinomio debe tener al menos grado 1[/red]")
+            return False
+        
+        # Verificar que la raíz es válida
+        valor_raiz = self.verificar_raiz(self.coeficientes_original, self.raiz_deflacion)
+        
+        if abs(valor_raiz) > 1e-6:
+            console.print(f"[yellow]Advertencia: La raíz ingresada no es exacta[/yellow]")
+            console.print(f"[yellow]P({self.raiz_deflacion:.6f}) = {valor_raiz:.2e}[/yellow]")
+            
+            respuesta = input("¿Continuar con la deflación? (s/n): ").lower().strip()
+            if respuesta != 's':
+                return False
+        
+        # Realizar la deflación
+        self.coeficientes_cociente, self.residuo = self.division_sintetica(
+            self.coeficientes_original, self.raiz_deflacion
+        )
+        
+        self.coeficientes_deflado = self.coeficientes_cociente.copy()
+        
+        # Guardar en historial
+        self.historial_deflaciones = [{
+            'paso': 1,
+            'raiz': self.raiz_deflacion,
+            'grado_antes': len(self.coeficientes_original) - 1,
+            'grado_despues': len(self.coeficientes_deflado) - 1 if self.coeficientes_deflado else 0,
+            'residuo': self.residuo,
+            'coeficientes_antes': self.coeficientes_original.copy(),
+            'coeficientes_despues': self.coeficientes_deflado.copy()
+        }]
+        
+        return True
+
+def mostrar_menu_principal():
+    """Muestra el menú principal"""
+    os.system('clear')
+    
+    panel = Panel.fit(
+        "[bold blue]Deflación de Polinomios[/bold blue]\n"
+        "[italic]Reduce el grado usando una raíz conocida[/italic]",
+        border_style="blue"
+    )
+    console.print(panel)
+    
+    tabla = Table(show_header=False, box=None, padding=(0, 2))
+    tabla.add_column("Opción", style="bold cyan")
+    tabla.add_column("Descripción", style="white")
+    
+    tabla.add_row("1.", "Ingresar coeficientes del polinomio")
+    tabla.add_row("2.", "Ingresar raíz para deflación")
+    tabla.add_row("3.", "Ejecutar deflación")
+    tabla.add_row("4.", "Ver resultados detallados")
+    tabla.add_row("5.", "Deflación múltiple")
+    tabla.add_row("6.", "Ver historial de deflaciones")
+    tabla.add_row("7.", "Ver ayuda y ejemplos")
+    tabla.add_row("0.", "Salir")
+    
+    console.print(tabla)
+    console.print()
+
+def ingresar_coeficientes(deflacion: DeflacionPolinomios):
+    """Menú para ingreso de coeficientes del polinomio"""
+    os.system('clear')
+    
+    console.print("[bold cyan]Ingreso de Coeficientes del Polinomio[/bold cyan]\n")
+    
+    while True:
+        try:
+            console.print("[yellow]Formato: a_n x^n + a_{n-1} x^{n-1} + ... + a_1 x + a_0[/yellow]")
+            console.print("[yellow]Ingrese los coeficientes desde el término de mayor grado al menor[/yellow]\n")
+            
+            grado = int(input("Grado del polinomio: "))
+            if grado < 1:
+                console.print("[red]El grado debe ser al menos 1[/red]")
+                continue
+            
+            coeficientes = []
+            console.print(f"\nIngrese los {grado + 1} coeficientes:")
+            
+            for i in range(grado + 1):
+                potencia = grado - i
+                while True:
+                    try:
+                        if potencia == 0:
+                            prompt = f"Coeficiente del término independiente: "
+                        elif potencia == 1:
+                            prompt = f"Coeficiente de x: "
+                        else:
+                            prompt = f"Coeficiente de x^{potencia}: "
+                        
+                        coef = float(input(prompt))
+                        coeficientes.append(coef)
+                        break
+                    except ValueError:
+                        console.print("[red]Ingrese un número válido[/red]")
+            
+            # Verificar que el coeficiente principal no sea cero
+            if coeficientes[0] == 0:
+                console.print("[red]El coeficiente principal no puede ser cero[/red]")
+                continue
+            
+            deflacion.coeficientes_original = coeficientes
+            
+            # Mostrar el polinomio ingresado
+            console.print("\n[green]Polinomio ingresado:[/green]")
+            polinomio_str = deflacion.formatear_polinomio(coeficientes)
+            console.print(f"P(x) = {polinomio_str}")
+            
+            input("\nPresione Enter para continuar...")
+            return
+            
+        except ValueError:
+            console.print("[red]Ingrese un número válido[/red]")
+        except KeyboardInterrupt:
+            return
+
+def ingresar_raiz(deflacion: DeflacionPolinomios):
+    """Menú para ingreso de la raíz de deflación"""
+    os.system('clear')
+    
+    if not deflacion.coeficientes_original:
+        console.print("[red]Primero debe ingresar los coeficientes del polinomio[/red]")
+        input("Presione Enter para continuar...")
+        return
+    
+    console.print("[bold cyan]Ingreso de Raíz para Deflación[/bold cyan]\n")
+    
+    # Mostrar el polinomio actual
+    console.print("[cyan]Polinomio actual:[/cyan]")
+    polinomio_str = deflacion.formatear_polinomio(deflacion.coeficientes_original)
+    console.print(f"P(x) = {polinomio_str}")
+    console.print()
+    
+    while True:
+        try:
+            raiz = float(input("Ingrese la raíz conocida: "))
+            
+            # Verificar la raíz
+            valor = deflacion.verificar_raiz(deflacion.coeficientes_original, raiz)
+            
+            console.print(f"\n[cyan]Verificación:[/cyan]")
+            console.print(f"P({raiz}) = {valor:.2e}")
+            
+            if abs(valor) < 1e-6:
+                console.print("[green]✓ La raíz es válida (error < 1e-6)[/green]")
+            elif abs(valor) < 1e-3:
+                console.print("[yellow]⚠ La raíz es aproximada (error < 1e-3)[/yellow]")
+            else:
+                console.print("[red]✗ La raíz no parece ser correcta (error > 1e-3)[/red]")
+                respuesta = input("¿Desea usarla de todas formas? (s/n): ").lower().strip()
+                if respuesta != 's':
+                    continue
+            
+            deflacion.raiz_deflacion = raiz
+            console.print(f"\n[green]Raíz {raiz} configurada para deflación[/green]")
+            
+            input("\nPresione Enter para continuar...")
+            return
+            
+        except ValueError:
+            console.print("[red]Ingrese un número válido[/red]")
+        except KeyboardInterrupt:
+            return
+
+def ejecutar_deflacion_simple(deflacion: DeflacionPolinomios):
+    """Ejecuta una deflación simple"""
+    os.system('clear')
+    
+    if not deflacion.coeficientes_original:
+        console.print("[red]Primero debe ingresar los coeficientes del polinomio[/red]")
+        input("Presione Enter para continuar...")
+        return
+    
+    console.print("[bold cyan]Ejecutando Deflación Simple[/bold cyan]\n")
+    
+    # Mostrar configuración actual
+    console.print("[cyan]Configuración actual:[/cyan]")
+    polinomio_str = deflacion.formatear_polinomio(deflacion.coeficientes_original)
+    console.print(f"Polinomio: P(x) = {polinomio_str}")
+    console.print(f"Raíz para deflación: {deflacion.raiz_deflacion}")
+    console.print()
+    
+    # Ejecutar deflación
+    if deflacion.ejecutar_deflacion():
+        console.print("[bold green]¡Deflación ejecutada exitosamente![/bold green]\n")
+        
+        # Mostrar resultados
+        console.print("[cyan]Resultados:[/cyan]")
+        
+        tabla = Table(show_header=True)
+        tabla.add_column("Concepto", style="cyan")
+        tabla.add_column("Valor", style="green")
+        
+        tabla.add_row("Grado original", str(len(deflacion.coeficientes_original) - 1))
+        tabla.add_row("Grado deflado", str(len(deflacion.coeficientes_deflado) - 1) if deflacion.coeficientes_deflado else "0")
+        tabla.add_row("Residuo", f"{deflacion.residuo:.2e}")
+        
+        console.print(tabla)
+        
+        if deflacion.coeficientes_deflado:
+            polinomio_deflado = deflacion.formatear_polinomio(deflacion.coeficientes_deflado)
+            console.print(f"\n[green]Polinomio deflado:[/green]")
+            console.print(f"Q(x) = {polinomio_deflado}")
+        
+        console.print(f"\n[green]Relación: P(x) = (x - {deflacion.raiz_deflacion}) × Q(x) + {deflacion.residuo:.2e}[/green]")
+    else:
+        console.print("[red]Error en la deflación[/red]")
+    
+    input("\nPresione Enter para continuar...")
+
+def deflacion_multiple_menu(deflacion: DeflacionPolinomios):
+    """Menú para deflación múltiple"""
+    os.system('clear')
+    
+    if not deflacion.coeficientes_original:
+        console.print("[red]Primero debe ingresar los coeficientes del polinomio[/red]")
+        input("Presione Enter para continuar...")
+        return
+    
+    console.print("[bold cyan]Deflación Múltiple[/bold cyan]\n")
+    
+    # Mostrar polinomio actual
+    polinomio_str = deflacion.formatear_polinomio(deflacion.coeficientes_original)
+    console.print(f"[cyan]Polinomio:[/cyan] P(x) = {polinomio_str}")
+    console.print()
+    
+    while True:
+        try:
+            num_raices = int(input("¿Cuántas raíces desea usar para deflación? "))
+            if num_raices < 1:
+                console.print("[red]Debe ingresar al menos una raíz[/red]")
+                continue
+            
+            grado_original = len(deflacion.coeficientes_original) - 1
+            if num_raices > grado_original:
+                console.print(f"[red]No puede usar más de {grado_original} raíces[/red]")
+                continue
+            
+            break
+        except ValueError:
+            console.print("[red]Ingrese un número válido[/red]")
+    
+    # Ingresar las raíces
+    raices = []
+    for i in range(num_raices):
+        while True:
+            try:
+                raiz = float(input(f"Raíz {i+1}: "))
+                
+                # Verificar la raíz
+                valor = deflacion.verificar_raiz(deflacion.coeficientes_original, raiz)
+                console.print(f"  Verificación: P({raiz}) = {valor:.2e}")
+                
+                if abs(valor) > 1e-3:
+                    respuesta = input("  ⚠ Raíz no exacta. ¿Continuar? (s/n): ").lower().strip()
+                    if respuesta != 's':
+                        continue
+                
+                raices.append(raiz)
+                break
+            except ValueError:
+                console.print("[red]Ingrese un número válido[/red]")
+    
+    # Ejecutar deflación múltiple
+    console.print(f"\n[cyan]Ejecutando deflación múltiple con {len(raices)} raíces...[/cyan]\n")
+    
+    deflacion.historial_deflaciones = []
+    resultado = deflacion.deflacion_multiple(deflacion.coeficientes_original, raices)
+    
+    console.print(f"\n[bold green]¡Deflación múltiple completada![/bold green]")
+    
+    if resultado:
+        polinomio_final = deflacion.formatear_polinomio(resultado)
+        console.print(f"\n[green]Polinomio final:[/green] Q(x) = {polinomio_final}")
+        console.print(f"[green]Grado final:[/green] {len(resultado) - 1}")
+    else:
+        console.print(f"\n[green]Polinomio completamente factorizado[/green]")
+    
+    input("\nPresione Enter para continuar...")
+
+def mostrar_resultados_detallados(deflacion: DeflacionPolinomios):
+    """Muestra resultados detallados con gráficos"""
+    if not deflacion.coeficientes_deflado and not deflacion.historial_deflaciones:
+        console.print("[red]No hay resultados para mostrar. Ejecute una deflación primero.[/red]")
+        input("Presione Enter para continuar...")
+        return
+    
+    os.system('clear')
+    
+    console.print("[bold cyan]Resultados Detallados - Deflación de Polinomios[/bold cyan]\n")
+    
+    # Información general
+    tabla_info = Table(show_header=True)
+    tabla_info.add_column("Propiedad", style="cyan")
+    tabla_info.add_column("Valor", style="green")
+    
+    if deflacion.historial_deflaciones:
+        ultimo = deflacion.historial_deflaciones[-1]
+        tabla_info.add_row("Deflaciones realizadas", str(len(deflacion.historial_deflaciones)))
+        tabla_info.add_row("Grado original", str(ultimo['grado_antes']))
+        tabla_info.add_row("Grado final", str(ultimo['grado_despues']))
+        tabla_info.add_row("Último residuo", f"{ultimo['residuo']:.2e}")
+    
+    console.print(tabla_info)
+    
+    # Mostrar polinomios
+    if deflacion.coeficientes_original:
+        console.print(f"\n[cyan]Polinomio original:[/cyan]")
+        polinomio_original = deflacion.formatear_polinomio(deflacion.coeficientes_original)
+        console.print(f"P(x) = {polinomio_original}")
+    
+    if deflacion.coeficientes_deflado:
+        console.print(f"\n[cyan]Polinomio deflado:[/cyan]")
+        polinomio_deflado = deflacion.formatear_polinomio(deflacion.coeficientes_deflado)
+        console.print(f"Q(x) = {polinomio_deflado}")
+    
+    # Generar gráficos
+    try:
+        generar_graficos_deflacion(deflacion)
+        console.print("\n[green]Gráficos mostrados en ventana separada[/green]")
+    except Exception as e:
+        console.print(f"[red]Error al generar gráficos: {e}[/red]")
+    
+    input("\nPresione Enter para continuar...")
+
+def generar_graficos_deflacion(deflacion: DeflacionPolinomios):
+    """Genera gráficos comparativos de los polinomios"""
+    if not deflacion.coeficientes_original:
+        return
+    
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
+    
+    # Gráfico 1: Comparación de polinomios
+    x = np.linspace(-5, 5, 1000)
+    
+    # Evaluar polinomio original
+    y_original = np.zeros_like(x)
+    n_orig = len(deflacion.coeficientes_original) - 1
+    for i, coef in enumerate(deflacion.coeficientes_original):
+        potencia = n_orig - i
+        y_original += coef * (x ** potencia)
+    
+    ax1.plot(x, y_original, 'b-', linewidth=2, label='P(x) original')
+    ax1.axhline(y=0, color='k', linestyle='--', alpha=0.5)
+    ax1.axvline(x=0, color='k', linestyle='--', alpha=0.5)
+    
+    # Marcar raíz de deflación si existe
+    if hasattr(deflacion, 'raiz_deflacion'):
+        ax1.axvline(x=deflacion.raiz_deflacion, color='r', linestyle=':', 
+                   label=f'Raíz: {deflacion.raiz_deflacion:.3f}')
+        ax1.plot(deflacion.raiz_deflacion, 0, 'ro', markersize=8)
+    
+    # Evaluar polinomio deflado si existe
+    if deflacion.coeficientes_deflado:
+        y_deflado = np.zeros_like(x)
+        n_defl = len(deflacion.coeficientes_deflado) - 1
+        for i, coef in enumerate(deflacion.coeficientes_deflado):
+            potencia = n_defl - i
+            y_deflado += coef * (x ** potencia)
+        
+        ax1.plot(x, y_deflado, 'g--', linewidth=2, label='Q(x) deflado')
+    
+    ax1.set_xlabel('x')
+    ax1.set_ylabel('y')
+    ax1.set_title('Comparación de Polinomios')
+    ax1.grid(True, alpha=0.3)
+    ax1.legend()
+    
+    # Gráfico 2: Coeficientes antes y después
+    if deflacion.coeficientes_deflado:
+        grados_orig = list(range(len(deflacion.coeficientes_original) - 1, -1, -1))
+        grados_defl = list(range(len(deflacion.coeficientes_deflado) - 1, -1, -1))
+        
+        ax2.bar([g - 0.2 for g in grados_orig], deflacion.coeficientes_original, 
+               width=0.4, label='Original', alpha=0.7)
+        ax2.bar([g + 0.2 for g in grados_defl], deflacion.coeficientes_deflado, 
+               width=0.4, label='Deflado', alpha=0.7)
+        
+        ax2.set_xlabel('Grado del término')
+        ax2.set_ylabel('Coeficiente')
+        ax2.set_title('Comparación de Coeficientes')
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+    
+    # Gráfico 3: Historial de residuos (si hay deflación múltiple)
+    if len(deflacion.historial_deflaciones) > 1:
+        pasos = [h['paso'] for h in deflacion.historial_deflaciones]
+        residuos = [abs(h['residuo']) for h in deflacion.historial_deflaciones]
+        
+        ax3.semilogy(pasos, residuos, 'ro-', linewidth=2, markersize=6)
+        ax3.set_xlabel('Paso de deflación')
+        ax3.set_ylabel('|Residuo| (escala log)')
+        ax3.set_title('Evolución de Residuos')
+        ax3.grid(True, alpha=0.3)
+    
+    # Gráfico 4: Reducción de grado
+    if deflacion.historial_deflaciones:
+        pasos = [0] + [h['paso'] for h in deflacion.historial_deflaciones]
+        grados = [deflacion.historial_deflaciones[0]['grado_antes']] + \
+                [h['grado_despues'] for h in deflacion.historial_deflaciones]
+        
+        ax4.plot(pasos, grados, 'bo-', linewidth=2, markersize=8)
+        ax4.set_xlabel('Paso de deflación')
+        ax4.set_ylabel('Grado del polinomio')
+        ax4.set_title('Reducción de Grado')
+        ax4.grid(True, alpha=0.3)
+        ax4.set_ylim(bottom=0)
+    
+    plt.tight_layout()
+    plt.show()
+
+def mostrar_historial(deflacion: DeflacionPolinomios):
+    """Muestra el historial detallado de deflaciones"""
+    if not deflacion.historial_deflaciones:
+        console.print("[red]No hay historial de deflaciones disponible[/red]")
+        input("Presione Enter para continuar...")
+        return
+    
+    os.system('clear')
+    
+    console.print("[bold cyan]Historial de Deflaciones[/bold cyan]\n")
+    
+    tabla = Table(show_header=True)
+    tabla.add_column("Paso", style="cyan")
+    tabla.add_column("Raíz", style="green")
+    tabla.add_column("Grado Antes", style="yellow")
+    tabla.add_column("Grado Después", style="yellow")
+    tabla.add_column("Residuo", style="red")
+    tabla.add_column("Estado", style="blue")
+    
+    for h in deflacion.historial_deflaciones:
+        estado = "Exacta" if abs(h['residuo']) < 1e-12 else "Aproximada"
+        
+        tabla.add_row(
+            str(h['paso']),
+            f"{h['raiz']:.6f}",
+            str(h['grado_antes']),
+            str(h['grado_despues']),
+            f"{h['residuo']:.2e}",
+            estado
+        )
+    
+    console.print(tabla)
+    
+    # Mostrar detalles de cada paso
+    console.print(f"\n[cyan]Detalles de las deflaciones:[/cyan]")
+    
+    for h in deflacion.historial_deflaciones:
+        console.print(f"\n[yellow]Paso {h['paso']}:[/yellow]")
+        
+        # Polinomio antes
+        poli_antes = deflacion.formatear_polinomio(h['coeficientes_antes'])
+        console.print(f"  Antes:   P(x) = {poli_antes}")
+        
+        # Polinomio después
+        if h['coeficientes_despues']:
+            poli_despues = deflacion.formatear_polinomio(h['coeficientes_despues'])
+            console.print(f"  Después: Q(x) = {poli_despues}")
+        else:
+            console.print(f"  Después: Polinomio completamente factorizado")
+        
+        # Relación
+        console.print(f"  Relación: P(x) = (x - {h['raiz']:.6f}) × Q(x) + {h['residuo']:.2e}")
+    
+    input("\nPresione Enter para continuar...")
+
+def mostrar_ayuda():
+    """Muestra ayuda y ejemplos"""
+    os.system('clear')
+    
+    console.print("[bold cyan]Ayuda - Deflación de Polinomios[/bold cyan]\n")
+    
+    ayuda_text = """
+[yellow]¿Qué hace este método?[/yellow]
+La deflación reduce el grado de un polinomio usando una raíz conocida,
+permitiendo encontrar las raíces restantes más fácilmente.
+
+[yellow]¿Cuándo usarlo?[/yellow]
+- Después de encontrar una raíz con otros métodos
+- Para factorización sistemática de polinomios
+- En combinación con métodos de búsqueda de raíces
+- Para verificar la multiplicidad de raíces
+
+[yellow]Proceso típico:[/yellow]
+1. Encontrar una raíz (bisección, Newton-Raphson, etc.)
+2. Usar deflación para reducir el grado
+3. Buscar otra raíz en el polinomio reducido
+4. Repetir hasta factorizar completamente
+
+[yellow]Interpretación de resultados:[/yellow]
+- Residuo ≈ 0: La raíz es exacta o muy precisa
+- Residuo grande: La raíz es inexacta o hay errores
+- Grado reducido: El nuevo polinomio tiene una raíz menos
+
+[yellow]Ejemplos de uso:[/yellow]
+
+Ejemplo 1: P(x) = x³ - 6x² + 11x - 6
+- Raíz conocida: x = 1
+- Deflación: Q(x) = x² - 5x + 6
+- Factorización: (x - 1)(x² - 5x + 6)
+
+Ejemplo 2: P(x) = x⁴ - 1
+- Raíz conocida: x = 1
+- Primera deflación: Q₁(x) = x³ + x² + x + 1
+- Raíz conocida: x = -1
+- Segunda deflación: Q₂(x) = x² + 1
+
+[yellow]Consejos importantes:[/yellow]
+- Verifique siempre que la raíz sea correcta antes de deflacionar
+- Use alta precisión para evitar propagación de errores
+- Considere el condicionamiento del polinomio
+- Para raíces complejas, use métodos especializados
+"""
+    
+    console.print(ayuda_text)
+    
+    input("\nPresione Enter para continuar...")
+
+def main():
+    """Función principal del programa"""
+    deflacion = DeflacionPolinomios()
+    
+    while True:
+        mostrar_menu_principal()
+        
+        try:
+            opcion = input("Seleccione una opción: ").strip()
+            
+            if opcion == "0":
+                console.print("[yellow]¡Hasta luego![/yellow]")
+                break
+            elif opcion == "1":
+                ingresar_coeficientes(deflacion)
+            elif opcion == "2":
+                ingresar_raiz(deflacion)
+            elif opcion == "3":
+                ejecutar_deflacion_simple(deflacion)
+            elif opcion == "4":
+                mostrar_resultados_detallados(deflacion)
+            elif opcion == "5":
+                deflacion_multiple_menu(deflacion)
+            elif opcion == "6":
+                mostrar_historial(deflacion)
+            elif opcion == "7":
+                mostrar_ayuda()
+            else:
+                console.print("[red]Opción no válida. Intente nuevamente.[/red]")
+                input("Presione Enter para continuar...")
+                
+        except KeyboardInterrupt:
+            console.print("\n[yellow]¡Hasta luego![/yellow]")
+            break
+        except Exception as e:
+            console.print(f"[red]Error inesperado: {e}[/red]")
+            input("Presione Enter para continuar...")
+
+if __name__ == "__main__":
+    main()
+```
+
+# Interfaz de usuario
+
+La interfaz de deflación está diseñada para ser intuitiva y educativa:
+
+## Flujo Principal
+1. **Ingreso de coeficientes** - Entrada guiada del polinomio original
+2. **Verificación de raíz** - Validación automática de la raíz propuesta
+3. **Deflación simple o múltiple** - Opciones flexibles de procesamiento
+4. **Visualización de resultados** - Comparación antes/después con gráficos
+
+## Características Especiales
+- **Verificación automática** de raíces antes de deflacionar
+- **Formato matemático** de polinomios para mejor legibilidad
+- **Deflación múltiple** para procesar varias raíces en secuencia
+- **Historial detallado** de todas las operaciones realizadas
+
+# Ejemplos de ejecución
+
+## Ejemplo 1: Deflación simple
+```
+Polinomio: P(x) = x³ - 6x² + 11x - 6
+Raíz conocida: x = 1
+Verificación: P(1) = 0
+
+Resultado:
+- Polinomio deflado: Q(x) = x² - 5x + 6
+- Residuo: 0.000000e+00
+- Factorización: P(x) = (x - 1) × Q(x)
+```
+
+## Ejemplo 2: Deflación múltiple
+```
+Polinomio: P(x) = x⁴ - 10x² + 9
+Raíces conocidas: x = 1, x = -1, x = 3
+
+Paso 1: Deflación con x = 1
+- Resultado: Q₁(x) = x³ + x² - 9x - 9
+
+Paso 2: Deflación con x = -1  
+- Resultado: Q₂(x) = x² - 9
+
+Paso 3: Deflación con x = 3
+- Resultado: Q₃(x) = x + 3
+
+Factorización final: P(x) = (x-1)(x+1)(x-3)(x+3)
+```
+
+# Visualizaciones
+
+El programa genera gráficos comprensivos que incluyen:
+
+1. **Comparación de polinomios** - Original vs deflado superpuestos
+2. **Coeficientes** - Diagrama de barras comparativo
+3. **Evolución de residuos** - Precisión de cada deflación
+4. **Reducción de grado** - Progreso del proceso de deflación
+
+# Ideas de mejora
+
+## Mejoras Algorítmicas
+- **Deflación adaptativa** que detecta raíces múltiples automáticamente
+- **Estabilización numérica** para minimizar propagación de errores
+- **Deflación simbólica** usando aritmética de precisión arbitraria
+- **Detección de factores cuadráticos** para raíces complejas conjugadas
+
+## Funcionalidades Adicionales
+- **Interfaz gráfica** para selección visual de raíces
+- **Integración con métodos** de búsqueda de raíces
+- **Análisis de sensibilidad** a errores en las raíces
+- **Exportación simbólica** de factorizaciones
+
+# Complicaciones encontradas
+
+## Desafíos Numéricos
+1. **Propagación de errores**: Los errores se acumulan en deflaciones sucesivas
+2. **Raíces múltiples**: Deflación puede ser inestable cerca de raíces repetidas
+3. **Condicionamiento**: Polinomios mal condicionados amplifican errores
+4. **Precisión finita**: Aritmética de punto flotante limita la exactitud
+
+## Soluciones Implementadas
+- **Verificación previa** de raíces con tolerancias adaptativas
+- **Monitoreo de residuos** para detectar pérdida de precisión
+- **Advertencias automáticas** cuando los errores son significativos
+- **Múltiples formatos** de salida para análisis de resultados
+
+# Manual de uso
+
+## Instalación
+```bash
+pip install numpy matplotlib rich
+```
+
+## Ejecución
+```bash
+python deflacion_polinomios.py
+```
+
+## Guía de uso paso a paso
+
+### 1. Ingresar el polinomio
+- Especificar el grado del polinomio
+- Ingresar coeficientes desde el mayor al menor grado
+- Verificar la representación mostrada
+
+### 2. Proporcionar una raíz
+- Ingresar una raíz conocida del polinomio
+- El programa verificará automáticamente su validez
+- Decidir si proceder con raíces aproximadas
+
+### 3. Ejecutar deflación
+- Elegir deflación simple (una raíz) o múltiple (varias raíces)
+- Monitorear el progreso y los residuos generados
+- Revisar el polinomio resultante
+
+### 4. Analizar resultados
+- Examinar los gráficos comparativos
+- Verificar la factorización obtenida
+- Consultar el historial de operaciones
+
+## Resolución de problemas comunes
+
+**Raíz no válida**: Verificar cálculos o usar métodos numéricos para encontrar raíces más precisas
+
+**Residuos grandes**: Puede indicar raíces inexactas o problemas de condicionamiento
+
+**Resultados inconsistentes**: Verificar la precisión de entrada y considerar usar mayor precisión numérica

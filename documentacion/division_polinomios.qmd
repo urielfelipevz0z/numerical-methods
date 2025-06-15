@@ -1,0 +1,1053 @@
+---
+title: "División de Polinomios"
+author: "Proyecto Personal - Ingeniería en Computación"  
+date: today
+format: 
+  html:
+    theme: cosmo
+    code-fold: true
+    toc: true
+    number-sections: true
+    highlight-style: github
+    fig-width: 10
+    fig-height: 6
+    embed-resources: true
+execute:
+  warning: false
+  echo: true
+---
+
+# ¿Para qué sirve?
+
+La división de polinomios es una operación fundamental en álgebra que permite expresar un polinomio como el producto de otros polinomios más simples, más un residuo. Esta técnica es esencial en múltiples áreas de las matemáticas aplicadas.
+
+## Aplicaciones Prácticas
+
+- **Simplificación de fracciones racionales**: Reducir expresiones complejas
+- **Integración de funciones racionales**: Método de fracciones parciales
+- **Análisis de algoritmos**: Complejidad de algoritmos recursivos
+- **Teoría de números**: Algoritmo de Euclides para polinomios
+- **Criptografía**: Códigos de corrección de errores en cuerpos finitos
+- **Procesamiento de señales**: Diseño de filtros digitales
+
+## Ventajas del Método
+
+1. **Algoritmo sistemático**: Proceso estructurado y predecible
+2. **Exactitud**: Matemáticamente exacto (sin aproximaciones)
+3. **Versatilidad**: Funciona con cualquier par de polinomios
+4. **Base teórica**: Fundamento para otros métodos algebraicos
+5. **Implementación directa**: Traducción natural del algoritmo manual
+
+## Limitaciones
+
+- Solo aplicable a polinomios
+- Puede generar coeficientes fraccionarios complejos
+- Sensible a errores de redondeo en aritmética de punto flotante
+- Eficiencia computacional limitada para polinomios de grado muy alto
+
+# ¿Cómo funciona?
+
+La división de polinomios se basa en el **Algoritmo de División** (similar a la división larga de números enteros). Dados dos polinomios $P(x)$ (dividendo) y $D(x)$ (divisor), se buscan $Q(x)$ (cociente) y $R(x)$ (residuo) tales que:
+
+$$P(x) = D(x) \cdot Q(x) + R(x)$$
+
+donde el grado de $R(x)$ es menor que el grado de $D(x)$.
+
+## Algoritmo Paso a Paso
+
+1. **Verificar condiciones**: El divisor no debe ser el polinomio cero
+2. **Inicializar**: Cociente = 0, Residuo = Dividendo
+3. **Mientras** el grado del residuo ≥ grado del divisor:
+   - Calcular el término líder del cociente
+   - Multiplicar el divisor por este término
+   - Restar el resultado del residuo actual
+   - Añadir el término al cociente
+4. **Resultado**: Cociente y residuo finales
+
+## Ejemplo Manual
+
+División de $P(x) = x^3 + 2x^2 - x - 2$ entre $D(x) = x - 1$:
+
+```
+         x² + 3x + 2
+      ________________
+x - 1 | x³ + 2x² - x - 2
+        x³ - x²
+        ___________
+             3x² - x
+             3x² - 3x
+             ___________
+                  2x - 2
+                  2x - 2
+                  _______
+                      0
+```
+
+Resultado: $Q(x) = x^2 + 3x + 2$, $R(x) = 0$
+
+# Implementación completa
+
+```python
+#!/usr/bin/env python3
+"""
+División de Polinomios - Implementación con menús interactivos
+Realiza división larga de polinomios con visualización paso a paso
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.text import Text
+import os
+from typing import List, Tuple, Optional
+from fractions import Fraction
+
+console = Console()
+
+class DivisionPolinomios:
+    def __init__(self):
+        self.dividendo = []
+        self.divisor = []
+        self.cociente = []
+        self.residuo = []
+        self.pasos_division = []
+        self.usar_fracciones = False
+        self.precision_display = 6
+    
+    def limpiar_coeficientes(self, coeficientes: List[float]) -> List[float]:
+        """
+        Elimina coeficientes cero del inicio (términos de mayor grado)
+        """
+        while coeficientes and abs(coeficientes[0]) < 1e-15:
+            coeficientes.pop(0)
+        return coeficientes if coeficientes else [0.0]
+    
+    def grado_polinomio(self, coeficientes: List[float]) -> int:
+        """
+        Calcula el grado de un polinomio representado por sus coeficientes
+        """
+        coef_limpio = self.limpiar_coeficientes(coeficientes.copy())
+        return max(0, len(coef_limpio) - 1)
+    
+    def multiplicar_polinomio_escalar(self, coeficientes: List[float], escalar: float) -> List[float]:
+        """
+        Multiplica un polinomio por un escalar
+        """
+        return [coef * escalar for coef in coeficientes]
+    
+    def multiplicar_polinomio_monomio(self, coeficientes: List[float], coef_mono: float, grado_mono: int) -> List[float]:
+        """
+        Multiplica un polinomio por un monomio (coef_mono * x^grado_mono)
+        """
+        if abs(coef_mono) < 1e-15:
+            return [0.0]
+        
+        # Añadir ceros al final para representar la multiplicación por x^grado_mono
+        resultado = [0.0] * grado_mono + [coef * coef_mono for coef in coeficientes]
+        return resultado
+    
+    def restar_polinomios(self, p1: List[float], p2: List[float]) -> List[float]:
+        """
+        Resta dos polinomios: p1 - p2
+        """
+        # Asegurar que ambas listas tengan la misma longitud
+        max_len = max(len(p1), len(p2))
+        
+        # Completar con ceros al inicio si es necesario
+        p1_pad = [0.0] * (max_len - len(p1)) + p1
+        p2_pad = [0.0] * (max_len - len(p2)) + p2
+        
+        # Realizar la resta
+        resultado = [p1_pad[i] - p2_pad[i] for i in range(max_len)]
+        
+        return self.limpiar_coeficientes(resultado)
+    
+    def division_larga(self) -> bool:
+        """
+        Ejecuta el algoritmo de división larga de polinomios
+        
+        Returns:
+            True si la división se ejecutó exitosamente
+        """
+        if not self.divisor or all(abs(c) < 1e-15 for c in self.divisor):
+            console.print("[red]Error: No se puede dividir por el polinomio cero[/red]")
+            return False
+        
+        if not self.dividendo:
+            self.cociente = [0.0]
+            self.residuo = [0.0]
+            return True
+        
+        # Limpiar coeficientes iniciales
+        dividendo_actual = self.limpiar_coeficientes(self.dividendo.copy())
+        divisor_limpio = self.limpiar_coeficientes(self.divisor.copy())
+        
+        # Inicializar resultados
+        self.cociente = []
+        self.pasos_division = []
+        
+        paso_numero = 1
+        
+        # División larga
+        while (self.grado_polinomio(dividendo_actual) >= self.grado_polinomio(divisor_limpio) and 
+               not all(abs(c) < 1e-15 for c in dividendo_actual)):
+            
+            # Calcular el término del cociente
+            coef_dividendo = dividendo_actual[0]
+            coef_divisor = divisor_limpio[0]
+            
+            # Coeficiente del término del cociente
+            coef_termino = coef_dividendo / coef_divisor
+            
+            # Grado del término del cociente
+            grado_termino = (self.grado_polinomio(dividendo_actual) - 
+                           self.grado_polinomio(divisor_limpio))
+            
+            # Añadir término al cociente
+            if not self.cociente:
+                self.cociente = [0.0] * (grado_termino + 1)
+            while len(self.cociente) <= grado_termino:
+                self.cociente.insert(0, 0.0)
+            
+            self.cociente[-(grado_termino + 1)] = coef_termino
+            
+            # Calcular el producto del divisor por el término del cociente
+            producto = self.multiplicar_polinomio_monomio(divisor_limpio, coef_termino, grado_termino)
+            
+            # Guardar información del paso
+            paso_info = {
+                'numero': paso_numero,
+                'dividendo': dividendo_actual.copy(),
+                'termino_cociente': {'coef': coef_termino, 'grado': grado_termino},
+                'producto': producto.copy(),
+                'dividendo_antes_resta': dividendo_actual.copy()
+            }
+            
+            # Restar el producto del dividendo
+            dividendo_actual = self.restar_polinomios(dividendo_actual, producto)
+            
+            paso_info['dividendo_despues_resta'] = dividendo_actual.copy()
+            self.pasos_division.append(paso_info)
+            
+            paso_numero += 1
+        
+        # El residuo es lo que queda
+        self.residuo = dividendo_actual if dividendo_actual else [0.0]
+        
+        # Limpiar cociente
+        if not self.cociente:
+            self.cociente = [0.0]
+        else:
+            self.cociente = self.limpiar_coeficientes(self.cociente)
+        
+        return True
+    
+    def verificar_division(self) -> float:
+        """
+        Verifica que dividendo = divisor * cociente + residuo
+        
+        Returns:
+            Error máximo en la verificación
+        """
+        if not all([self.divisor, self.cociente, self.residuo]):
+            return float('inf')
+        
+        # Calcular divisor * cociente
+        producto = self.multiplicar_polinomios(self.divisor, self.cociente)
+        
+        # Sumar el residuo
+        resultado = self.sumar_polinomios(producto, self.residuo)
+        
+        # Comparar con el dividendo original
+        max_len = max(len(self.dividendo), len(resultado))
+        
+        dividendo_pad = [0.0] * (max_len - len(self.dividendo)) + self.dividendo
+        resultado_pad = [0.0] * (max_len - len(resultado)) + resultado
+        
+        errores = [abs(dividendo_pad[i] - resultado_pad[i]) for i in range(max_len)]
+        
+        return max(errores)
+    
+    def multiplicar_polinomios(self, p1: List[float], p2: List[float]) -> List[float]:
+        """
+        Multiplica dos polinomios
+        """
+        if not p1 or not p2:
+            return [0.0]
+        
+        grado_resultado = len(p1) + len(p2) - 2
+        resultado = [0.0] * (grado_resultado + 1)
+        
+        for i in range(len(p1)):
+            for j in range(len(p2)):
+                resultado[i + j] += p1[i] * p2[j]
+        
+        return self.limpiar_coeficientes(resultado)
+    
+    def sumar_polinomios(self, p1: List[float], p2: List[float]) -> List[float]:
+        """
+        Suma dos polinomios
+        """
+        max_len = max(len(p1), len(p2))
+        
+        p1_pad = [0.0] * (max_len - len(p1)) + p1
+        p2_pad = [0.0] * (max_len - len(p2)) + p2
+        
+        resultado = [p1_pad[i] + p2_pad[i] for i in range(max_len)]
+        
+        return self.limpiar_coeficientes(resultado)
+    
+    def formatear_polinomio(self, coeficientes: List[float], usar_fracciones: bool = False) -> str:
+        """
+        Convierte coeficientes a representación string del polinomio
+        """
+        if not coeficientes or all(abs(c) < 1e-15 for c in coeficientes):
+            return "0"
+        
+        n = len(coeficientes) - 1
+        terminos = []
+        
+        for i, coef in enumerate(coeficientes):
+            if abs(coef) < 1e-15:
+                continue
+                
+            potencia = n - i
+            
+            # Formatear coeficiente
+            if usar_fracciones:
+                try:
+                    frac = Fraction(coef).limit_denominator(1000)
+                    coef_str = str(frac)
+                except:
+                    coef_str = f"{coef:.{self.precision_display}g}"
+            else:
+                coef_str = f"{coef:.{self.precision_display}g}"
+            
+            # Construir término
+            if i == 0:  # Primer término
+                if potencia == 0:
+                    terminos.append(coef_str)
+                elif potencia == 1:
+                    if coef == 1:
+                        terminos.append("x")
+                    elif coef == -1:
+                        terminos.append("-x")
+                    else:
+                        terminos.append(f"{coef_str}x")
+                else:
+                    if coef == 1:
+                        terminos.append(f"x^{potencia}")
+                    elif coef == -1:
+                        terminos.append(f"-x^{potencia}")
+                    else:
+                        terminos.append(f"{coef_str}x^{potencia}")
+            else:  # Términos siguientes
+                signo = "+" if coef > 0 else "-"
+                coef_abs = abs(coef)
+                
+                if usar_fracciones:
+                    try:
+                        frac = Fraction(coef_abs).limit_denominator(1000)
+                        coef_abs_str = str(frac)
+                    except:
+                        coef_abs_str = f"{coef_abs:.{self.precision_display}g}"
+                else:
+                    coef_abs_str = f"{coef_abs:.{self.precision_display}g}"
+                
+                if potencia == 0:
+                    terminos.append(f" {signo} {coef_abs_str}")
+                elif potencia == 1:
+                    if coef_abs == 1:
+                        terminos.append(f" {signo} x")
+                    else:
+                        terminos.append(f" {signo} {coef_abs_str}x")
+                else:
+                    if coef_abs == 1:
+                        terminos.append(f" {signo} x^{potencia}")
+                    else:
+                        terminos.append(f" {signo} {coef_abs_str}x^{potencia}")
+        
+        return "".join(terminos) if terminos else "0"
+    
+    def formatear_monomio(self, coef: float, grado: int) -> str:
+        """
+        Formatea un monomio para display
+        """
+        if abs(coef) < 1e-15:
+            return "0"
+        
+        if grado == 0:
+            return f"{coef:.{self.precision_display}g}"
+        elif grado == 1:
+            if abs(coef - 1) < 1e-15:
+                return "x"
+            elif abs(coef + 1) < 1e-15:
+                return "-x"
+            else:
+                return f"{coef:.{self.precision_display}g}x"
+        else:
+            if abs(coef - 1) < 1e-15:
+                return f"x^{grado}"
+            elif abs(coef + 1) < 1e-15:
+                return f"-x^{grado}"
+            else:
+                return f"{coef:.{self.precision_display}g}x^{grado}"
+
+def mostrar_menu_principal():
+    """Muestra el menú principal"""
+    os.system('clear')
+    
+    panel = Panel.fit(
+        "[bold blue]División de Polinomios[/bold blue]\n"
+        "[italic]División larga con visualización paso a paso[/italic]",
+        border_style="blue"
+    )
+    console.print(panel)
+    
+    tabla = Table(show_header=False, box=None, padding=(0, 2))
+    tabla.add_column("Opción", style="bold cyan")
+    tabla.add_column("Descripción", style="white")
+    
+    tabla.add_row("1.", "Ingresar polinomio dividendo")
+    tabla.add_row("2.", "Ingresar polinomio divisor")
+    tabla.add_row("3.", "Ejecutar división")
+    tabla.add_row("4.", "Ver resultados detallados")
+    tabla.add_row("5.", "Ver pasos de la división")
+    tabla.add_row("6.", "Configurar opciones de display")
+    tabla.add_row("7.", "Ver ayuda y ejemplos")
+    tabla.add_row("0.", "Salir")
+    
+    console.print(tabla)
+    console.print()
+
+def ingresar_polinomio(division: DivisionPolinomios, tipo: str):
+    """Menú para ingreso de polinomios (dividendo o divisor)"""
+    os.system('clear')
+    
+    console.print(f"[bold cyan]Ingreso de Polinomio {tipo.title()}[/bold cyan]\n")
+    
+    while True:
+        try:
+            console.print("[yellow]Formato: a_n x^n + a_{n-1} x^{n-1} + ... + a_1 x + a_0[/yellow]")
+            console.print("[yellow]Ingrese los coeficientes desde el término de mayor grado al menor[/yellow]\n")
+            
+            grado = int(input(f"Grado del polinomio {tipo}: "))
+            if grado < 0:
+                console.print("[red]El grado debe ser no negativo[/red]")
+                continue
+            
+            coeficientes = []
+            console.print(f"\nIngrese los {grado + 1} coeficientes:")
+            
+            for i in range(grado + 1):
+                potencia = grado - i
+                while True:
+                    try:
+                        if potencia == 0:
+                            prompt = f"Coeficiente del término independiente: "
+                        elif potencia == 1:
+                            prompt = f"Coeficiente de x: "
+                        else:
+                            prompt = f"Coeficiente de x^{potencia}: "
+                        
+                        coef = float(input(prompt))
+                        coeficientes.append(coef)
+                        break
+                    except ValueError:
+                        console.print("[red]Ingrese un número válido[/red]")
+            
+            # Verificar que el coeficiente principal no sea cero (excepto para el polinomio cero)
+            if grado > 0 and coeficientes[0] == 0:
+                console.print("[red]El coeficiente principal no puede ser cero[/red]")
+                continue
+            
+            # Asignar según el tipo
+            if tipo.lower() == "dividendo":
+                division.dividendo = coeficientes
+            else:  # divisor
+                if all(abs(c) < 1e-15 for c in coeficientes):
+                    console.print("[red]El divisor no puede ser el polinomio cero[/red]")
+                    continue
+                division.divisor = coeficientes
+            
+            # Mostrar el polinomio ingresado
+            console.print(f"\n[green]Polinomio {tipo} ingresado:[/green]")
+            polinomio_str = division.formatear_polinomio(coeficientes)
+            console.print(f"{tipo.title()}(x) = {polinomio_str}")
+            
+            input("\nPresione Enter para continuar...")
+            return
+            
+        except ValueError:
+            console.print("[red]Ingrese un número válido[/red]")
+        except KeyboardInterrupt:
+            return
+
+def ejecutar_division(division: DivisionPolinomios):
+    """Ejecuta la división de polinomios"""
+    os.system('clear')
+    
+    if not division.dividendo:
+        console.print("[red]Primero debe ingresar el polinomio dividendo[/red]")
+        input("Presione Enter para continuar...")
+        return
+    
+    if not division.divisor:
+        console.print("[red]Primero debe ingresar el polinomio divisor[/red]")
+        input("Presione Enter para continuar...")
+        return
+    
+    console.print("[bold cyan]Ejecutando División de Polinomios[/bold cyan]\n")
+    
+    # Mostrar polinomios de entrada
+    console.print("[cyan]Polinomios de entrada:[/cyan]")
+    dividendo_str = division.formatear_polinomio(division.dividendo, division.usar_fracciones)
+    divisor_str = division.formatear_polinomio(division.divisor, division.usar_fracciones)
+    
+    console.print(f"Dividendo: P(x) = {dividendo_str}")
+    console.print(f"Divisor:   D(x) = {divisor_str}")
+    console.print()
+    
+    # Ejecutar división
+    console.print("[yellow]Ejecutando división larga...[/yellow]")
+    
+    if division.division_larga():
+        console.print("[bold green]¡División ejecutada exitosamente![/bold green]\n")
+        
+        # Mostrar resultados
+        cociente_str = division.formatear_polinomio(division.cociente, division.usar_fracciones)
+        residuo_str = division.formatear_polinomio(division.residuo, division.usar_fracciones)
+        
+        console.print("[cyan]Resultados:[/cyan]")
+        
+        tabla = Table(show_header=True)
+        tabla.add_column("Resultado", style="cyan")
+        tabla.add_column("Polinomio", style="green")
+        tabla.add_column("Grado", style="yellow")
+        
+        tabla.add_row("Cociente Q(x)", cociente_str, str(division.grado_polinomio(division.cociente)))
+        tabla.add_row("Residuo R(x)", residuo_str, str(division.grado_polinomio(division.residuo)))
+        
+        console.print(tabla)
+        
+        # Verificar resultado
+        error = division.verificar_division()
+        console.print(f"\n[cyan]Verificación:[/cyan]")
+        console.print(f"P(x) = D(x) × Q(x) + R(x)")
+        console.print(f"Error máximo: {error:.2e}")
+        
+        if error < 1e-10:
+            console.print("[green]✓ División verificada correctamente[/green]")
+        else:
+            console.print("[yellow]⚠ Hay errores numéricos en la división[/yellow]")
+        
+    else:
+        console.print("[red]Error en la división[/red]")
+    
+    input("\nPresione Enter para continuar...")
+
+def mostrar_pasos_division(division: DivisionPolinomios):
+    """Muestra los pasos detallados de la división"""
+    if not division.pasos_division:
+        console.print("[red]No hay pasos de división disponibles. Ejecute la división primero.[/red]")
+        input("Presione Enter para continuar...")
+        return
+    
+    os.system('clear')
+    
+    console.print("[bold cyan]Pasos Detallados de la División[/bold cyan]\n")
+    
+    # Mostrar información inicial
+    dividendo_str = division.formatear_polinomio(division.dividendo, division.usar_fracciones)
+    divisor_str = division.formatear_polinomio(division.divisor, division.usar_fracciones)
+    
+    console.print(f"[cyan]Dividendo:[/cyan] P(x) = {dividendo_str}")
+    console.print(f"[cyan]Divisor:[/cyan]  D(x) = {divisor_str}")
+    console.print()
+    
+    # Mostrar cada paso
+    for paso in division.pasos_division:
+        console.print(f"[yellow]Paso {paso['numero']}:[/yellow]")
+        
+        # Dividendo actual
+        dividendo_actual_str = division.formatear_polinomio(
+            paso['dividendo'], division.usar_fracciones
+        )
+        console.print(f"  Dividendo actual: {dividendo_actual_str}")
+        
+        # Término del cociente
+        termino = paso['termino_cociente']
+        termino_str = division.formatear_monomio(termino['coef'], termino['grado'])
+        console.print(f"  Término del cociente: {termino_str}")
+        
+        # Producto
+        producto_str = division.formatear_polinomio(
+            paso['producto'], division.usar_fracciones
+        )
+        console.print(f"  D(x) × {termino_str} = {producto_str}")
+        
+        # Resta
+        resultado_str = division.formatear_polinomio(
+            paso['dividendo_despues_resta'], division.usar_fracciones
+        )
+        console.print(f"  Después de restar: {resultado_str}")
+        
+        console.print()
+    
+    # Resultado final
+    cociente_str = division.formatear_polinomio(division.cociente, division.usar_fracciones)
+    residuo_str = division.formatear_polinomio(division.residuo, division.usar_fracciones)
+    
+    console.print("[bold green]Resultado Final:[/bold green]")
+    console.print(f"Cociente: Q(x) = {cociente_str}")
+    console.print(f"Residuo:  R(x) = {residuo_str}")
+    
+    input("\nPresione Enter para continuar...")
+
+def mostrar_resultados_detallados(division: DivisionPolinomios):
+    """Muestra resultados detallados con gráficos"""
+    if not division.cociente:
+        console.print("[red]No hay resultados para mostrar. Ejecute la división primero.[/red]")
+        input("Presione Enter para continuar...")
+        return
+    
+    os.system('clear')
+    
+    console.print("[bold cyan]Resultados Detallados - División de Polinomios[/bold cyan]\n")
+    
+    # Tabla de información general
+    tabla_info = Table(show_header=True)
+    tabla_info.add_column("Concepto", style="cyan")
+    tabla_info.add_column("Valor", style="green")
+    
+    tabla_info.add_row("Grado del dividendo", str(division.grado_polinomio(division.dividendo)))
+    tabla_info.add_row("Grado del divisor", str(division.grado_polinomio(division.divisor)))
+    tabla_info.add_row("Grado del cociente", str(division.grado_polinomio(division.cociente)))
+    tabla_info.add_row("Grado del residuo", str(division.grado_polinomio(division.residuo)))
+    tabla_info.add_row("Pasos de división", str(len(division.pasos_division)))
+    tabla_info.add_row("Error de verificación", f"{division.verificar_division():.2e}")
+    
+    console.print(tabla_info)
+    
+    # Mostrar todos los polinomios
+    console.print(f"\n[cyan]Polinomios:[/cyan]")
+    
+    tabla_poli = Table(show_header=True)
+    tabla_poli.add_column("Tipo", style="cyan")
+    tabla_poli.add_column("Expresión", style="green")
+    
+    dividendo_str = division.formatear_polinomio(division.dividendo, division.usar_fracciones)
+    divisor_str = division.formatear_polinomio(division.divisor, division.usar_fracciones)
+    cociente_str = division.formatear_polinomio(division.cociente, division.usar_fracciones)
+    residuo_str = division.formatear_polinomio(division.residuo, division.usar_fracciones)
+    
+    tabla_poli.add_row("Dividendo P(x)", dividendo_str)
+    tabla_poli.add_row("Divisor D(x)", divisor_str)
+    tabla_poli.add_row("Cociente Q(x)", cociente_str)
+    tabla_poli.add_row("Residuo R(x)", residuo_str)
+    
+    console.print(tabla_poli)
+    
+    # Relación fundamental
+    console.print(f"\n[cyan]Relación Fundamental:[/cyan]")
+    console.print(f"P(x) = D(x) × Q(x) + R(x)")
+    console.print(f"({dividendo_str}) = ({divisor_str}) × ({cociente_str}) + ({residuo_str})")
+    
+    # Generar gráficos
+    try:
+        generar_graficos_division(division)
+        console.print("\n[green]Gráficos mostrados en ventana separada[/green]")
+    except Exception as e:
+        console.print(f"[red]Error al generar gráficos: {e}[/red]")
+    
+    input("\nPresione Enter para continuar...")
+
+def generar_graficos_division(division: DivisionPolinomios):
+    """Genera gráficos de los polinomios"""
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
+    
+    # Determinar rango de x para gráficos
+    x = np.linspace(-5, 5, 1000)
+    
+    # Función para evaluar polinomio
+    def evaluar_polinomio(coeficientes, x_vals):
+        if not coeficientes:
+            return np.zeros_like(x_vals)
+        
+        n = len(coeficientes) - 1
+        resultado = np.zeros_like(x_vals)
+        
+        for i, coef in enumerate(coeficientes):
+            potencia = n - i
+            resultado += coef * (x_vals ** potencia)
+        
+        return resultado
+    
+    # Gráfico 1: Todos los polinomios
+    y_dividendo = evaluar_polinomio(division.dividendo, x)
+    y_divisor = evaluar_polinomio(division.divisor, x)
+    y_cociente = evaluar_polinomio(division.cociente, x)
+    y_residuo = evaluar_polinomio(division.residuo, x)
+    
+    ax1.plot(x, y_dividendo, 'b-', linewidth=2, label='P(x) Dividendo')
+    ax1.plot(x, y_divisor, 'r-', linewidth=2, label='D(x) Divisor')
+    ax1.plot(x, y_cociente, 'g-', linewidth=2, label='Q(x) Cociente')
+    ax1.plot(x, y_residuo, 'm-', linewidth=2, label='R(x) Residuo')
+    
+    ax1.axhline(y=0, color='k', linestyle='--', alpha=0.5)
+    ax1.axvline(x=0, color='k', linestyle='--', alpha=0.5)
+    ax1.set_xlabel('x')
+    ax1.set_ylabel('y')
+    ax1.set_title('Todos los Polinomios')
+    ax1.grid(True, alpha=0.3)
+    ax1.legend()
+    
+    # Gráfico 2: Verificación P(x) = D(x)*Q(x) + R(x)
+    y_producto = evaluar_polinomio(division.multiplicar_polinomios(division.divisor, division.cociente), x)
+    y_verificacion = y_producto + y_residuo
+    
+    ax2.plot(x, y_dividendo, 'b-', linewidth=2, label='P(x) Original')
+    ax2.plot(x, y_verificacion, 'r--', linewidth=2, label='D(x)×Q(x) + R(x)')
+    ax2.plot(x, y_dividendo - y_verificacion, 'g:', linewidth=1, label='Diferencia')
+    
+    ax2.axhline(y=0, color='k', linestyle='--', alpha=0.5)
+    ax2.axvline(x=0, color='k', linestyle='--', alpha=0.5)
+    ax2.set_xlabel('x')
+    ax2.set_ylabel('y')
+    ax2.set_title('Verificación de la División')
+    ax2.grid(True, alpha=0.3)
+    ax2.legend()
+    
+    # Gráfico 3: Coeficientes
+    max_grado = max(len(division.dividendo), len(division.divisor), 
+                   len(division.cociente), len(division.residuo)) - 1
+    
+    grados = list(range(max_grado + 1))
+    
+    # Pad coeficientes para que tengan la misma longitud
+    def pad_coeficientes(coef, longitud):
+        return [0.0] * (longitud - len(coef)) + coef
+    
+    dividendo_pad = pad_coeficientes(division.dividendo, max_grado + 1)
+    divisor_pad = pad_coeficientes(division.divisor, max_grado + 1)
+    cociente_pad = pad_coeficientes(division.cociente, max_grado + 1)
+    residuo_pad = pad_coeficientes(division.residuo, max_grado + 1)
+    
+    width = 0.2
+    ax3.bar([g - 1.5*width for g in grados], dividendo_pad, width, label='Dividendo', alpha=0.7)
+    ax3.bar([g - 0.5*width for g in grados], divisor_pad, width, label='Divisor', alpha=0.7)
+    ax3.bar([g + 0.5*width for g in grados], cociente_pad, width, label='Cociente', alpha=0.7)
+    ax3.bar([g + 1.5*width for g in grados], residuo_pad, width, label='Residuo', alpha=0.7)
+    
+    ax3.set_xlabel('Grado del término')
+    ax3.set_ylabel('Coeficiente')
+    ax3.set_title('Comparación de Coeficientes')
+    ax3.legend()
+    ax3.grid(True, alpha=0.3)
+    
+    # Gráfico 4: Información de pasos
+    if division.pasos_division:
+        pasos = [p['numero'] for p in division.pasos_division]
+        grados_cociente = [p['termino_cociente']['grado'] for p in division.pasos_division]
+        coefs_cociente = [abs(p['termino_cociente']['coef']) for p in division.pasos_division]
+        
+        ax4_twin = ax4.twinx()
+        
+        bars = ax4.bar(pasos, grados_cociente, alpha=0.7, color='skyblue', label='Grado del término')
+        line = ax4_twin.plot(pasos, coefs_cociente, 'ro-', linewidth=2, label='|Coeficiente|')
+        
+        ax4.set_xlabel('Paso de división')
+        ax4.set_ylabel('Grado del término del cociente', color='blue')
+        ax4_twin.set_ylabel('|Coeficiente|', color='red')
+        ax4.set_title('Progreso de la División')
+        ax4.grid(True, alpha=0.3)
+        
+        # Combinar leyendas
+        lines1, labels1 = ax4.get_legend_handles_labels()
+        lines2, labels2 = ax4_twin.get_legend_handles_labels()
+        ax4.legend(lines1 + lines2, labels1 + labels2, loc='upper right')
+    
+    plt.tight_layout()
+    plt.show()
+
+def configurar_opciones(division: DivisionPolinomios):
+    """Menú para configurar opciones de display"""
+    while True:
+        os.system('clear')
+        
+        console.print("[bold cyan]Configuración de Opciones de Display[/bold cyan]\n")
+        
+        tabla = Table(show_header=True, box=None)
+        tabla.add_column("Opción", style="cyan")
+        tabla.add_column("Valor Actual", style="yellow")
+        tabla.add_column("Descripción", style="white")
+        
+        tabla.add_row("Usar fracciones", str(division.usar_fracciones), "Mostrar resultados como fracciones")
+        tabla.add_row("Precisión display", str(division.precision_display), "Número de dígitos significativos")
+        
+        console.print(tabla)
+        console.print()
+        
+        tabla_menu = Table(show_header=False, box=None, padding=(0, 2))
+        tabla_menu.add_column("Opción", style="bold cyan")
+        tabla_menu.add_column("Descripción", style="white")
+        
+        tabla_menu.add_row("1.", "Alternar uso de fracciones")
+        tabla_menu.add_row("2.", "Cambiar precisión de display")
+        tabla_menu.add_row("3.", "Restaurar valores por defecto")
+        tabla_menu.add_row("0.", "Volver al menú principal")
+        
+        console.print(tabla_menu)
+        
+        try:
+            opcion = input("\nSeleccione una opción: ").strip()
+            
+            if opcion == "0":
+                break
+            elif opcion == "1":
+                division.usar_fracciones = not division.usar_fracciones
+                estado = "activado" if division.usar_fracciones else "desactivado"
+                console.print(f"[green]Uso de fracciones {estado}[/green]")
+                input("Presione Enter para continuar...")
+                
+            elif opcion == "2":
+                nueva_precision = int(input("Nueva precisión (1-15): "))
+                if 1 <= nueva_precision <= 15:
+                    division.precision_display = nueva_precision
+                    console.print("[green]Precisión actualizada[/green]")
+                else:
+                    console.print("[red]La precisión debe estar entre 1 y 15[/red]")
+                input("Presione Enter para continuar...")
+                
+            elif opcion == "3":
+                division.usar_fracciones = False
+                division.precision_display = 6
+                console.print("[green]Opciones restauradas a valores por defecto[/green]")
+                input("Presione Enter para continuar...")
+                
+            else:
+                console.print("[red]Opción no válida[/red]")
+                input("Presione Enter para continuar...")
+                
+        except ValueError:
+            console.print("[red]Ingrese un valor válido[/red]")
+            input("Presione Enter para continuar...")
+        except KeyboardInterrupt:
+            break
+
+def mostrar_ayuda():
+    """Muestra ayuda y ejemplos"""
+    os.system('clear')
+    
+    console.print("[bold cyan]Ayuda - División de Polinomios[/bold cyan]\n")
+    
+    ayuda_text = """
+[yellow]¿Qué hace este método?[/yellow]
+La división de polinomios descompone un polinomio (dividendo) en el producto
+de otros dos polinomios (divisor y cociente) más un residuo.
+
+[yellow]Fórmula fundamental:[/yellow]
+P(x) = D(x) × Q(x) + R(x)
+
+Donde:
+- P(x): Polinomio dividendo
+- D(x): Polinomio divisor  
+- Q(x): Polinomio cociente
+- R(x): Polinomio residuo (grado < grado de D(x))
+
+[yellow]¿Cuándo usar división de polinomios?[/yellow]
+- Simplificar fracciones racionales
+- Integración por fracciones parciales
+- Factorización de polinomios
+- Resolución de ecuaciones polinomiales
+- Algoritmos de interpolación
+
+[yellow]Ejemplos prácticos:[/yellow]
+
+Ejemplo 1: División exacta
+Dividendo: x³ - 1
+Divisor:   x - 1
+Cociente:  x² + x + 1
+Residuo:   0
+
+Ejemplo 2: División con residuo
+Dividendo: x³ + 2x² + x + 1  
+Divisor:   x² + 1
+Cociente:  x + 2
+Residuo:   2
+
+[yellow]Interpretación de resultados:[/yellow]
+- Si R(x) = 0: División exacta, D(x) es factor de P(x)
+- Si R(x) ≠ 0: División inexacta, existe residuo
+- Grado de R(x) < Grado de D(x) siempre
+
+[yellow]Consejos de uso:[/yellow]
+1. Verifique que el divisor no sea cero
+2. El grado del cociente = grado del dividendo - grado del divisor
+3. Use fracciones para resultados exactos con coeficientes racionales
+4. Verifique el resultado usando P(x) = D(x)×Q(x) + R(x)
+"""
+    
+    console.print(ayuda_text)
+    
+    input("\nPresione Enter para continuar...")
+
+def main():
+    """Función principal del programa"""
+    division = DivisionPolinomios()
+    
+    while True:
+        mostrar_menu_principal()
+        
+        try:
+            opcion = input("Seleccione una opción: ").strip()
+            
+            if opcion == "0":
+                console.print("[yellow]¡Hasta luego![/yellow]")
+                break
+            elif opcion == "1":
+                ingresar_polinomio(division, "dividendo")
+            elif opcion == "2":
+                ingresar_polinomio(division, "divisor")
+            elif opcion == "3":
+                ejecutar_division(division)
+            elif opcion == "4":
+                mostrar_resultados_detallados(division)
+            elif opcion == "5":
+                mostrar_pasos_division(division)
+            elif opcion == "6":
+                configurar_opciones(division)
+            elif opcion == "7":
+                mostrar_ayuda()
+            else:
+                console.print("[red]Opción no válida. Intente nuevamente.[/red]")
+                input("Presione Enter para continuar...")
+                
+        except KeyboardInterrupt:
+            console.print("\n[yellow]¡Hasta luego![/yellow]")
+            break
+        except Exception as e:
+            console.print(f"[red]Error inesperado: {e}[/red]")
+            input("Presione Enter para continuar...")
+
+if __name__ == "__main__":
+    main()
+```
+
+# Interfaz de usuario
+
+La interfaz de división de polinomios enfatiza la claridad educativa:
+
+## Características Principales
+- **Entrada separada** de dividendo y divisor
+- **Visualización paso a paso** del algoritmo de división larga
+- **Verificación automática** del resultado
+- **Opciones de formato** (decimales vs fracciones)
+- **Gráficos comparativos** de todos los polinomios involucrados
+
+## Flujo de Usuario
+1. Ingresar el polinomio dividendo
+2. Ingresar el polinomio divisor  
+3. Ejecutar la división con feedback visual
+4. Examinar resultados y pasos detallados
+5. Verificar mediante gráficos y evaluación numérica
+
+# Ejemplos de ejecución
+
+## Ejemplo 1: División exacta
+```
+Dividendo: P(x) = x³ - 8
+Divisor:   D(x) = x - 2
+
+Resultado:
+Cociente: Q(x) = x² + 2x + 4
+Residuo:  R(x) = 0
+
+Verificación: x³ - 8 = (x - 2)(x² + 2x + 4) + 0
+```
+
+## Ejemplo 2: División con residuo
+```
+Dividendo: P(x) = 2x⁴ + x³ - 3x² + x + 1
+Divisor:   D(x) = x² + x - 1
+
+Resultado:
+Cociente: Q(x) = 2x² - x - 1
+Residuo:  R(x) = 3x + 2
+
+Verificación: 2x⁴ + x³ - 3x² + x + 1 = (x² + x - 1)(2x² - x - 1) + (3x + 2)
+```
+
+# Visualizaciones
+
+Los gráficos incluyen:
+
+1. **Superposición de polinomios** - Comparación visual de P(x), D(x), Q(x), R(x)
+2. **Verificación gráfica** - P(x) vs D(x)×Q(x) + R(x)
+3. **Comparación de coeficientes** - Distribución por grados
+4. **Progreso de división** - Evolución de términos del cociente
+
+# Ideas de mejora
+
+## Algoritmos Avanzados
+- **División sintética generalizada** para mayor eficiencia
+- **División con precisión arbitraria** usando bibliotecas simbólicas
+- **Optimización para polinomios dispersos** (muchos coeficientes cero)
+- **Paralelización** para polinomios de grado muy alto
+
+## Funcionalidades Educativas
+- **Animación paso a paso** del proceso de división
+- **Modo tutorial** con explicaciones detalladas
+- **Generador de ejercicios** aleatorios
+- **Comparación con división manual** tradicional
+
+# Complicaciones encontradas
+
+## Desafíos de Implementación
+1. **Manejo de ceros**: Coeficientes muy pequeños por errores de redondeo
+2. **Normalización**: Mantener consistencia en representación de polinomios
+3. **Verificación numérica**: Acumulación de errores en aritmética de punto flotante
+4. **Interfaz educativa**: Balance entre simplicidad y completitud
+
+## Soluciones Aplicadas
+- **Tolerancia adaptativa** para detección de ceros
+- **Limpieza automática** de coeficientes despreciables
+- **Verificación múltiple** mediante evaluación y reconstrucción
+- **Formatos alternativos** (decimal/fracción) según el contexto
+
+# Manual de uso
+
+## Requisitos
+```bash
+pip install numpy matplotlib rich
+```
+
+## Uso paso a paso
+
+### 1. Preparación de datos
+- Tener los coeficientes de ambos polinomios listos
+- Decidir el formato de salida deseado (decimal/fracción)
+
+### 2. Entrada de polinomios
+- Ingresar dividendo: coeficientes en orden de mayor a menor grado
+- Ingresar divisor: verificar que no sea el polinomio cero
+
+### 3. Ejecución y análisis
+- Ejecutar división y revisar resultados inmediatos
+- Consultar pasos detallados para entender el proceso
+- Usar gráficos para verificación visual
+
+### 4. Interpretación de resultados
+- **Cociente**: Resultado principal de la división
+- **Residuo**: Lo que "sobra" de la división
+- **Verificación**: Confirmar que P(x) = D(x)×Q(x) + R(x)
+
+## Casos de uso típicos
+
+**Factorización**: Si R(x) = 0, entonces D(x) es factor de P(x)
+
+**Fracciones parciales**: Usar para descomponer fracciones racionales
+
+**Interpolación**: Construir polinomios que pasen por puntos dados

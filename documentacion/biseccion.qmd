@@ -1,0 +1,825 @@
+---
+title: "Método de Bisección"
+author: "Proyecto Personal - Ingeniería en Computación"  
+date: today
+format: 
+  html:
+    theme: cosmo
+    code-fold: true
+    toc: true
+    number-sections: true
+    highlight-style: github
+    fig-width: 10
+    fig-height: 6
+    embed-resources: true
+execute:
+  warning: false
+  echo: true
+---
+
+# ¿Para qué sirve?
+
+El método de bisección es uno de los métodos más fundamentales y confiables para encontrar raíces de ecuaciones no lineales. Sus principales aplicaciones incluyen:
+
+## Aplicaciones Prácticas
+
+- **Ingeniería Civil**: Cálculo de cargas críticas en estructuras
+- **Física**: Determinación de puntos de equilibrio en sistemas dinámicos
+- **Economía**: Encontrar puntos de equilibrio en modelos económicos
+- **Ciencias de la Computación**: Búsqueda en algoritmos de optimización
+- **Matemáticas Aplicadas**: Solución de ecuaciones trascendentales
+
+## Ventajas del Método
+
+1. **Convergencia garantizada**: Siempre converge si la función es continua y cambia de signo
+2. **Simplicidad**: Fácil de implementar y entender
+3. **Robustez**: No requiere derivadas ni aproximaciones iniciales complejas
+4. **Estabilidad numérica**: Menos susceptible a errores de redondeo
+
+## Limitaciones
+
+- Convergencia lineal (relativamente lenta)
+- Requiere que la función cambie de signo en el intervalo
+- Solo encuentra una raíz a la vez
+
+# ¿Cómo funciona?
+
+El método de bisección se basa en el **Teorema del Valor Intermedio**: si una función continua $f(x)$ tiene signos opuestos en los extremos de un intervalo $[a,b]$, entonces existe al menos una raíz en ese intervalo.
+
+## Algoritmo Paso a Paso
+
+1. **Verificar condiciones iniciales**: 
+   - $f(a) \cdot f(b) < 0$ (signos opuestos)
+   - La función debe ser continua en $[a,b]$
+
+2. **Calcular punto medio**:
+   $$c = \frac{a + b}{2}$$
+
+3. **Evaluar la función en el punto medio**: $f(c)$
+
+4. **Determinar nuevo intervalo**:
+   - Si $f(a) \cdot f(c) < 0$: la raíz está en $[a,c]$, entonces $b = c$
+   - Si $f(c) \cdot f(b) < 0$: la raíz está en $[c,b]$, entonces $a = c$
+   - Si $f(c) = 0$: encontramos la raíz exacta
+
+5. **Verificar criterios de parada**:
+   - Error absoluto: $|b - a| < \text{tolerancia}$
+   - Error relativo: $\frac{|b - a|}{|c|} < \text{tolerancia}$
+   - Número máximo de iteraciones alcanzado
+
+6. **Repetir desde el paso 2** hasta cumplir criterios de parada
+
+## Análisis de Convergencia
+
+La convergencia del método de bisección es **lineal** con factor de convergencia $1/2$:
+
+$$e_{n+1} \leq \frac{1}{2}e_n$$
+
+Donde $e_n$ es el error en la iteración $n$.
+
+**Número de iteraciones necesarias**:
+$$n \geq \frac{\log(b_0 - a_0) - \log(\varepsilon)}{\log(2)}$$
+
+Donde $\varepsilon$ es la tolerancia deseada y $[a_0, b_0]$ es el intervalo inicial.
+
+# Implementación Completa
+
+```{python}
+#!/usr/bin/env python3
+"""
+Método de Bisección - Implementación con menús interactivos
+Encuentra raíces de ecuaciones no lineales mediante bisección de intervalos
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.prompt import Prompt, FloatPrompt
+from rich import print as rprint
+import sympy as sp
+from tqdm import tqdm
+import os
+from typing import Callable, Tuple, List, Optional
+
+console = Console()
+
+class MetodoBiseccion:
+    """Implementación del método de bisección con interfaz interactiva"""
+    
+    def __init__(self):
+        self.funcion_str = ""
+        self.funcion_sympy = None
+        self.funcion_numpy = None
+        self.a = 0.0
+        self.b = 0.0
+        self.tolerancia = 1e-6
+        self.max_iteraciones = 100
+        self.resultados = []
+        self.x_vals = []
+        self.y_vals = []
+        
+    def limpiar_pantalla(self):
+        """Limpia la pantalla del terminal"""
+        os.system('clear' if os.name == 'posix' else 'cls')
+        
+    def mostrar_banner(self):
+        """Muestra el banner del método"""
+        banner = Panel.fit(
+            "[bold blue]🔢 MÉTODO DE BISECCIÓN[/bold blue]\n"
+            "[italic]Búsqueda de raíces por bisección de intervalos[/italic]",
+            border_style="blue"
+        )
+        console.print(banner)
+        console.print()
+    
+    def mostrar_menu_principal(self) -> str:
+        """Muestra el menú principal y retorna la opción seleccionada"""
+        self.limpiar_pantalla()
+        self.mostrar_banner()
+        
+        table = Table(show_header=False, box=None, padding=(0, 2))
+        table.add_column("Opción", style="bold cyan", width=8)
+        table.add_column("Descripción", style="white")
+        
+        opciones = [
+            ("1", "📝 Ingresar función"),
+            ("2", "📊 Configurar intervalo [a,b]"),
+            ("3", "⚙️  Configurar parámetros"),
+            ("4", "🚀 Ejecutar método"),
+            ("5", "📈 Ver resultados anteriores"),
+            ("6", "❓ Ayuda"),
+            ("7", "🚪 Salir")
+        ]
+        
+        for num, desc in opciones:
+            table.add_row(num, desc)
+            
+        console.print(table)
+        console.print()
+        
+        return Prompt.ask(
+            "[bold yellow]Seleccione una opción[/bold yellow]",
+            choices=[str(i) for i in range(1, 8)],
+            default="1"
+        )
+    
+    def ingresar_funcion(self):
+        """Menú para ingreso de función"""
+        self.limpiar_pantalla()
+        console.print("[bold blue]📝 INGRESO DE FUNCIÓN[/bold blue]\n")
+        
+        console.print("Ingrese la función f(x) = 0 que desea resolver.")
+        console.print("Ejemplos válidos:")
+        console.print("  • x**2 - 4")
+        console.print("  • exp(x) - 2")
+        console.print("  • sin(x) - 0.5")
+        console.print("  • log(x) + x")
+        console.print()
+        
+        while True:
+            try:
+                self.funcion_str = Prompt.ask("[yellow]f(x) =[/yellow]").strip()
+                
+                if not self.funcion_str:
+                    console.print("[red]❌ Debe ingresar una función[/red]")
+                    continue
+                
+                # Crear función simbólica
+                x = sp.Symbol('x')
+                self.funcion_sympy = sp.sympify(self.funcion_str)
+                
+                # Convertir a función numpy
+                self.funcion_numpy = sp.lambdify(x, self.funcion_sympy, 'numpy')
+                
+                # Probar la función
+                test_vals = [0, 1, -1, 0.5, -0.5]
+                for val in test_vals:
+                    try:
+                        resultado = float(self.funcion_numpy(val))
+                        if not np.isfinite(resultado):
+                            continue
+                    except:
+                        continue
+                        
+                console.print(f"[green]✅ Función ingresada exitosamente: f(x) = {self.funcion_str}[/green]")
+                
+                # Mostrar algunos valores de prueba
+                console.print("\n[blue]Valores de prueba:[/blue]")
+                test_table = Table()
+                test_table.add_column("x", style="cyan")
+                test_table.add_column("f(x)", style="yellow")
+                
+                for val in [-2, -1, 0, 1, 2]:
+                    try:
+                        fx = self.funcion_numpy(val)
+                        test_table.add_row(str(val), f"{fx:.6f}")
+                    except:
+                        test_table.add_row(str(val), "No definido")
+                        
+                console.print(test_table)
+                break
+                
+            except Exception as e:
+                console.print(f"[red]❌ Error en la función: {str(e)}[/red]")
+                console.print("Revise la sintaxis. Use 'exp', 'sin', 'cos', 'log', etc.")
+                
+        input("\nPresione Enter para continuar...")
+    
+    def configurar_intervalo(self):
+        """Menú para configurar el intervalo [a,b]"""
+        self.limpiar_pantalla()
+        console.print("[bold blue]📊 CONFIGURACIÓN DEL INTERVALO[/bold blue]\n")
+        
+        if not self.funcion_numpy:
+            console.print("[red]❌ Debe ingresar una función primero[/red]")
+            input("Presione Enter para continuar...")
+            return
+            
+        console.print("El método de bisección requiere un intervalo [a,b] donde:")
+        console.print("  • f(a) y f(b) tengan signos opuestos")
+        console.print("  • La función sea continua en [a,b]")
+        console.print()
+        
+        while True:
+            try:
+                self.a = FloatPrompt.ask("[yellow]Extremo izquierdo a[/yellow]")
+                fa = float(self.funcion_numpy(self.a))
+                
+                self.b = FloatPrompt.ask("[yellow]Extremo derecho b[/yellow]")
+                fb = float(self.funcion_numpy(self.b))
+                
+                if self.a >= self.b:
+                    console.print("[red]❌ Debe cumplirse a < b[/red]")
+                    continue
+                    
+                console.print(f"\n[blue]Verificación del intervalo:[/blue]")
+                console.print(f"f({self.a}) = {fa:.6f}")
+                console.print(f"f({self.b}) = {fb:.6f}")
+                console.print(f"f(a) × f(b) = {fa * fb:.6f}")
+                
+                if fa * fb > 0:
+                    console.print("[red]❌ f(a) y f(b) deben tener signos opuestos[/red]")
+                    console.print("No se garantiza la existencia de raíz en este intervalo.")
+                    
+                    if not Prompt.ask(
+                        "¿Desea continuar de todas formas?", 
+                        choices=["s", "n"], 
+                        default="n"
+                    ) == "s":
+                        continue
+                else:
+                    console.print("[green]✅ Intervalo válido: existe al menos una raíz[/green]")
+                
+                # Mostrar gráfico del intervalo
+                self._mostrar_grafico_intervalo()
+                break
+                
+            except Exception as e:
+                console.print(f"[red]❌ Error: {str(e)}[/red]")
+                
+        input("\nPresione Enter para continuar...")
+    
+    def configurar_parametros(self):
+        """Menú para configurar parámetros del método"""
+        self.limpiar_pantalla()
+        console.print("[bold blue]⚙️  CONFIGURACIÓN DE PARÁMETROS[/bold blue]\n")
+        
+        # Mostrar valores actuales
+        table = Table()
+        table.add_column("Parámetro", style="cyan")
+        table.add_column("Valor Actual", style="yellow")
+        table.add_column("Descripción", style="white")
+        
+        table.add_row(
+            "Tolerancia", 
+            f"{self.tolerancia:.2e}", 
+            "Error máximo aceptable"
+        )
+        table.add_row(
+            "Max. Iteraciones", 
+            str(self.max_iteraciones), 
+            "Límite de iteraciones"
+        )
+        
+        console.print(table)
+        console.print()
+        
+        # Configurar tolerancia
+        nueva_tol = FloatPrompt.ask(
+            f"[yellow]Nueva tolerancia[/yellow] (actual: {self.tolerancia:.2e})",
+            default=self.tolerancia
+        )
+        if nueva_tol > 0:
+            self.tolerancia = nueva_tol
+        
+        # Configurar iteraciones
+        nuevas_iter = int(Prompt.ask(
+            f"[yellow]Máximo de iteraciones[/yellow] (actual: {self.max_iteraciones})",
+            default=str(self.max_iteraciones)
+        ))
+        if nuevas_iter > 0:
+            self.max_iteraciones = nuevas_iter
+            
+        console.print("[green]✅ Parámetros actualizados[/green]")
+        input("Presione Enter para continuar...")
+    
+    def ejecutar_metodo(self):
+        """Ejecuta el método de bisección"""
+        self.limpiar_pantalla()
+        console.print("[bold blue]🚀 EJECUCIÓN DEL MÉTODO[/bold blue]\n")
+        
+        # Verificar que todo esté configurado
+        if not self.funcion_numpy:
+            console.print("[red]❌ Debe ingresar una función[/red]")
+            input("Presione Enter para continuar...")
+            return
+            
+        if self.a >= self.b:
+            console.print("[red]❌ Debe configurar un intervalo válido[/red]")
+            input("Presione Enter para continuar...")
+            return
+        
+        console.print(f"[blue]Función:[/blue] f(x) = {self.funcion_str}")
+        console.print(f"[blue]Intervalo:[/blue] [{self.a}, {self.b}]")
+        console.print(f"[blue]Tolerancia:[/blue] {self.tolerancia:.2e}")
+        console.print(f"[blue]Max. iteraciones:[/blue] {self.max_iteraciones}")
+        console.print()
+        
+        if not Prompt.ask("¿Proceder con la ejecución?", choices=["s", "n"], default="s") == "s":
+            return
+            
+        # Ejecutar algoritmo
+        self._ejecutar_algoritmo()
+        
+        # Mostrar resultados
+        self._mostrar_resultados()
+        
+        input("\nPresione Enter para continuar...")
+    
+    def _ejecutar_algoritmo(self):
+        """Ejecuta el algoritmo de bisección"""
+        a, b = self.a, self.b
+        self.resultados = []
+        
+        fa = float(self.funcion_numpy(a))
+        fb = float(self.funcion_numpy(b))
+        
+        console.print("[yellow]Ejecutando método de bisección...[/yellow]\n")
+        
+        with tqdm(total=self.max_iteraciones, desc="Iteraciones") as pbar:
+            for i in range(self.max_iteraciones):
+                # Calcular punto medio
+                c = (a + b) / 2
+                fc = float(self.funcion_numpy(c))
+                
+                # Calcular errores
+                error_abs = abs(b - a)
+                error_rel = error_abs / abs(c) if c != 0 else float('inf')
+                
+                # Guardar resultado de la iteración
+                self.resultados.append({
+                    'iteracion': i + 1,
+                    'a': a,
+                    'b': b,
+                    'c': c,
+                    'fa': fa,
+                    'fb': fb,
+                    'fc': fc,
+                    'error_abs': error_abs,
+                    'error_rel': error_rel,
+                    'longitud_intervalo': b - a
+                })
+                
+                # Verificar convergencia
+                if error_abs < self.tolerancia or abs(fc) < self.tolerancia:
+                    console.print(f"\n[green]✅ Convergencia alcanzada en {i+1} iteraciones[/green]")
+                    break
+                
+                # Determinar nuevo intervalo
+                if fa * fc < 0:
+                    b = c
+                    fb = fc
+                else:
+                    a = c
+                    fa = fc
+                    
+                pbar.update(1)
+                pbar.set_postfix({
+                    'Raíz aprox.': f'{c:.6f}',
+                    'Error': f'{error_abs:.2e}'
+                })
+        else:
+            console.print(f"\n[yellow]⚠️  Se alcanzó el máximo de iteraciones ({self.max_iteraciones})[/yellow]")
+    
+    def _mostrar_resultados(self):
+        """Muestra los resultados del método"""
+        console.print("\n[bold blue]📊 RESULTADOS[/bold blue]\n")
+        
+        if not self.resultados:
+            console.print("[red]No hay resultados para mostrar[/red]")
+            return
+            
+        ultimo = self.resultados[-1]
+        
+        # Resumen de convergencia
+        panel_resultado = Panel.fit(
+            f"[bold green]Raíz encontrada: {ultimo['c']:.8f}[/bold green]\n"
+            f"[blue]Error absoluto: {ultimo['error_abs']:.2e}[/blue]\n"
+            f"[blue]Error relativo: {ultimo['error_rel']:.2e}[/blue]\n"
+            f"[blue]Iteraciones: {ultimo['iteracion']}[/blue]\n"
+            f"[blue]f(raíz) = {ultimo['fc']:.2e}[/blue]",
+            title="🎯 Resultado Final",
+            border_style="green"
+        )
+        console.print(panel_resultado)
+        
+        # Tabla de iteraciones (últimas 10)
+        console.print("\n[bold blue]Tabla de Iteraciones (últimas 10):[/bold blue]")
+        
+        table = Table()
+        table.add_column("Iter", style="cyan", width=4)
+        table.add_column("a", style="blue", width=12)
+        table.add_column("b", style="blue", width=12)
+        table.add_column("c", style="yellow", width=12)
+        table.add_column("f(c)", style="green", width=12)
+        table.add_column("Error Abs", style="red", width=10)
+        
+        # Mostrar últimas 10 iteraciones
+        ultimas = self.resultados[-10:] if len(self.resultados) > 10 else self.resultados
+        
+        for r in ultimas:
+            table.add_row(
+                str(r['iteracion']),
+                f"{r['a']:.6f}",
+                f"{r['b']:.6f}",
+                f"{r['c']:.6f}",
+                f"{r['fc']:.2e}",
+                f"{r['error_abs']:.2e}"
+            )
+            
+        console.print(table)
+        
+        # Mostrar gráficos
+        self._mostrar_graficos_convergencia()
+    
+    def _mostrar_grafico_intervalo(self):
+        """Muestra gráfico de la función en el intervalo"""
+        try:
+            margin = 0.2 * (self.b - self.a)
+            x_plot = np.linspace(self.a - margin, self.b + margin, 1000)
+            y_plot = [self.funcion_numpy(x) for x in x_plot]
+            
+            plt.figure(figsize=(10, 6))
+            plt.plot(x_plot, y_plot, 'b-', linewidth=2, label=f'f(x) = {self.funcion_str}')
+            plt.axhline(y=0, color='k', linestyle='--', alpha=0.3)
+            plt.axvline(x=self.a, color='r', linestyle='--', alpha=0.7, label=f'a = {self.a}')
+            plt.axvline(x=self.b, color='r', linestyle='--', alpha=0.7, label=f'b = {self.b}')
+            
+            # Marcar puntos de evaluación
+            plt.plot(self.a, self.funcion_numpy(self.a), 'ro', markersize=8, label=f'f(a) = {self.funcion_numpy(self.a):.4f}')
+            plt.plot(self.b, self.funcion_numpy(self.b), 'ro', markersize=8, label=f'f(b) = {self.funcion_numpy(self.b):.4f}')
+            
+            plt.title('Función en el Intervalo de Búsqueda')
+            plt.xlabel('x')
+            plt.ylabel('f(x)')
+            plt.grid(True, alpha=0.3)
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+            
+        except Exception as e:
+            console.print(f"[yellow]⚠️  No se pudo mostrar el gráfico: {str(e)}[/yellow]")
+    
+    def _mostrar_graficos_convergencia(self):
+        """Muestra gráficos de convergencia"""
+        if len(self.resultados) < 2:
+            return
+            
+        try:
+            # Extraer datos
+            iteraciones = [r['iteracion'] for r in self.resultados]
+            aproximaciones = [r['c'] for r in self.resultados]
+            errores_abs = [r['error_abs'] for r in self.resultados]
+            errores_rel = [r['error_rel'] for r in self.resultados if r['error_rel'] != float('inf')]
+            
+            # Crear subplots
+            fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
+            
+            # Gráfico 1: Convergencia de aproximaciones
+            ax1.plot(iteraciones, aproximaciones, 'bo-', linewidth=2, markersize=4)
+            ax1.set_xlabel('Iteración')
+            ax1.set_ylabel('Aproximación de la raíz')
+            ax1.set_title('Convergencia de Aproximaciones')
+            ax1.grid(True, alpha=0.3)
+            
+            # Gráfico 2: Error absoluto
+            ax2.semilogy(iteraciones, errores_abs, 'ro-', linewidth=2, markersize=4)
+            ax2.set_xlabel('Iteración')
+            ax2.set_ylabel('Error Absoluto (log)')
+            ax2.set_title('Convergencia del Error Absoluto')
+            ax2.grid(True, alpha=0.3)
+            
+            # Gráfico 3: Longitud del intervalo
+            longitudes = [r['longitud_intervalo'] for r in self.resultados]
+            ax3.semilogy(iteraciones, longitudes, 'go-', linewidth=2, markersize=4)
+            ax3.set_xlabel('Iteración')
+            ax3.set_ylabel('Longitud del Intervalo (log)')
+            ax3.set_title('Reducción del Intervalo')
+            ax3.grid(True, alpha=0.3)
+            
+            # Gráfico 4: Función en la raíz
+            valores_funcion = [abs(r['fc']) for r in self.resultados]
+            ax4.semilogy(iteraciones, valores_funcion, 'mo-', linewidth=2, markersize=4)
+            ax4.set_xlabel('Iteración')
+            ax4.set_ylabel('|f(c)| (log)')
+            ax4.set_title('Valor de la Función en c')
+            ax4.grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            plt.show()
+            
+        except Exception as e:
+            console.print(f"[yellow]⚠️  No se pudieron mostrar los gráficos: {str(e)}[/yellow]")
+    
+    def ver_resultados_anteriores(self):
+        """Muestra resultados de ejecuciones anteriores"""
+        self.limpiar_pantalla()
+        console.print("[bold blue]📈 RESULTADOS ANTERIORES[/bold blue]\n")
+        
+        if not self.resultados:
+            console.print("[yellow]No hay resultados anteriores para mostrar[/yellow]")
+            console.print("Ejecute el método primero.")
+            input("\nPresione Enter para continuar...")
+            return
+            
+        self._mostrar_resultados()
+        input("\nPresione Enter para continuar...")
+    
+    def mostrar_ayuda(self):
+        """Muestra ayuda del método"""
+        self.limpiar_pantalla()
+        console.print("[bold blue]❓ AYUDA - MÉTODO DE BISECCIÓN[/bold blue]\n")
+        
+        ayuda_texto = """
+[bold cyan]¿Qué es el método de bisección?[/bold cyan]
+Es un método numérico para encontrar raíces de ecuaciones no lineales.
+Funciona dividiendo repetidamente un intervalo por la mitad hasta
+encontrar la raíz con la precisión deseada.
+
+[bold cyan]¿Cuándo usarlo?[/bold cyan]
+• Cuando tienes una función continua f(x)
+• Conoces un intervalo [a,b] donde f(a) y f(b) tienen signos opuestos
+• Necesitas un método garantizado de convergencia
+• No tienes la derivada de la función
+
+[bold cyan]Pasos para usar este programa:[/bold cyan]
+1. Ingrese la función f(x) usando sintaxis de Python
+2. Configure el intervalo [a,b] donde buscar la raíz
+3. Ajuste la tolerancia y máximo de iteraciones si es necesario
+4. Execute el método y analice los resultados
+
+[bold cyan]Ejemplos de funciones válidas:[/bold cyan]
+• x**2 - 4                    (raíces en ±2)
+• exp(x) - 2                  (raíz en ln(2))
+• sin(x) - 0.5                (raíz en π/6)
+• x**3 - 2*x - 5              (ecuación cúbica)
+• log(x) + x - 2              (ecuación trascendental)
+
+[bold cyan]Funciones disponibles:[/bold cyan]
+• Básicas: +, -, *, /, **
+• Trigonométricas: sin, cos, tan, asin, acos, atan
+• Exponenciales: exp, log (natural), log10
+• Hiperbólicas: sinh, cosh, tanh
+• Otras: sqrt, abs
+
+[bold cyan]Consejos:[/bold cyan]
+• Grafique la función primero para identificar intervalos prometedores
+• Use paréntesis para clarificar el orden de operaciones
+• Si f(a) y f(b) tienen el mismo signo, intente otro intervalo
+• Para mayor precisión, reduzca la tolerancia
+• Para convergencia más rápida, elija un intervalo más pequeño
+        """
+        
+        console.print(ayuda_texto)
+        input("\nPresione Enter para continuar...")
+
+def main():
+    """Función principal"""
+    metodo = MetodoBiseccion()
+    
+    while True:
+        opcion = metodo.mostrar_menu_principal()
+        
+        if opcion == "1":
+            metodo.ingresar_funcion()
+        elif opcion == "2":
+            metodo.configurar_intervalo()
+        elif opcion == "3":
+            metodo.configurar_parametros()
+        elif opcion == "4":
+            metodo.ejecutar_metodo()
+        elif opcion == "5":
+            metodo.ver_resultados_anteriores()
+        elif opcion == "6":
+            metodo.mostrar_ayuda()
+        elif opcion == "7":
+            console.print("\n[green]¡Gracias por usar el Método de Bisección![/green]")
+            break
+
+if __name__ == "__main__":
+    main()
+```
+
+# Interfaz de Usuario
+
+El programa presenta una interfaz CLI elegante con las siguientes características:
+
+## Menú Principal
+- **Opciones numeradas**: 1-7 para navegación intuitiva
+- **Rich formatting**: Colores y estilos para mejor legibilidad
+- **Descripción clara**: Cada opción explica su función
+
+## Flujo de Uso
+1. **Ingreso de función**: Sintaxis Python con validación automática
+2. **Configuración de intervalo**: Verificación de condiciones del teorema
+3. **Parámetros ajustables**: Tolerancia e iteraciones máximas
+4. **Ejecución visual**: Barra de progreso con tqdm
+5. **Resultados completos**: Tablas, gráficos y análisis
+
+## Validaciones
+- Sintaxis correcta de la función
+- Continuidad en el intervalo
+- Signos opuestos en los extremos
+- Valores numéricos válidos
+
+# Ejemplos de Ejecución
+
+## Ejemplo 1: Función Cuadrática
+```
+Función: x**2 - 4
+Intervalo: [1, 3]
+Tolerancia: 1e-6
+
+Resultado: x = 2.000000
+Iteraciones: 20
+```
+
+## Ejemplo 2: Función Exponencial
+```
+Función: exp(x) - 2
+Intervalo: [0, 1]
+Tolerancia: 1e-8
+
+Resultado: x = 0.69314718 (ln(2))
+Iteraciones: 27
+```
+
+## Ejemplo 3: Función Trascendental
+```
+Función: sin(x) - 0.5
+Intervalo: [0, 1]
+Tolerancia: 1e-10
+
+Resultado: x = 0.5235987756 (π/6)
+Iteraciones: 33
+```
+
+# Visualizaciones
+
+El programa genera automáticamente:
+
+1. **Gráfico del intervalo**: Muestra la función y los puntos de evaluación
+2. **Convergencia de aproximaciones**: Evolución de las estimaciones de la raíz
+3. **Error absoluto**: Reducción del error en escala logarítmica
+4. **Longitud del intervalo**: Bisección progresiva del intervalo
+5. **Valor de la función**: |f(c)| para verificar convergencia a cero
+
+Todos los gráficos se muestran en tiempo real usando matplotlib con ventanas emergentes.
+
+# Ideas de Mejora
+
+## Funcionalidades Adicionales
+- **Múltiples intervalos**: Búsqueda automática de intervalos válidos
+- **Comparación de métodos**: Bisección vs. otros métodos
+- **Análisis de sensibilidad**: Efecto de cambios en parámetros
+- **Exportación de datos**: Guardar resultados en CSV/Excel
+- **Funciones predefinidas**: Biblioteca de ejemplos comunes
+
+## Optimizaciones de Rendimiento
+- **Evaluación vectorizada**: NumPy para múltiples puntos
+- **Caché de resultados**: Evitar recálculos innecesarios
+- **Precisión adaptiva**: Ajuste automático de tolerancia
+- **Paralelización**: Múltiples búsquedas simultáneas
+
+## Mejoras de Interfaz
+- **Gráficos interactivos**: Plotly en lugar de matplotlib
+- **Interfaz web**: Flask/Streamlit para uso en navegador
+- **Guardar sesiones**: Persistencia de configuraciones
+- **Historial completo**: Base de datos de ejecuciones
+
+# Complicaciones Encontradas
+
+## Desafíos de Implementación
+
+### 1. Validación de Funciones
+**Problema**: Evaluación segura de funciones ingresadas por el usuario
+**Solución**: Combinación de SymPy para parsing y NumPy para evaluación numérica
+
+### 2. Manejo de Dominios
+**Problema**: Funciones no definidas en ciertos puntos (log(0), 1/0)
+**Solución**: Try-catch en evaluaciones con mensajes informativos
+
+### 3. Convergencia Lenta
+**Problema**: El método puede requerir muchas iteraciones
+**Solución**: Estimación automática del número de iteraciones necesarias
+
+### 4. Casos Edge
+**Problema**: Intervalos muy pequeños o muy grandes
+**Solución**: Validación de rangos numéricos y warning para condicionamiento
+
+### 5. Visualización en Tiempo Real
+**Problema**: Mostrar gráficos sin bloquear la ejecución
+**Solución**: Matplotlib con modo no-bloqueante y manejo de excepciones
+
+## Casos Especiales Manejados
+- Funciones con discontinuidades
+- Raíces múltiples en el intervalo
+- Funciones con derivadas muy pequeñas
+- Problemas de precisión numérica
+- Intervalos iniciales inapropiados
+
+# Manual de Uso
+
+## Instalación
+```bash
+# Clonar el repositorio
+git clone [repositorio]
+
+# Instalar dependencias
+pip install -r requirements.txt
+
+# Ejecutar el método
+python ecuaciones_no_lineales/biseccion.py
+```
+
+## Uso Paso a Paso
+
+### 1. Ejecutar el Programa
+```bash
+python ecuaciones_no_lineales/biseccion.py
+```
+
+### 2. Ingresar Función (Opción 1)
+- Escriba la función usando sintaxis Python
+- Ejemplo: `x**3 - 2*x - 5`
+- Use funciones como `sin`, `cos`, `exp`, `log`
+
+### 3. Configurar Intervalo (Opción 2)
+- Ingrese extremo izquierdo `a`
+- Ingrese extremo derecho `b`
+- Verifique que f(a) y f(b) tengan signos opuestos
+
+### 4. Ajustar Parámetros (Opción 3)
+- **Tolerancia**: Error máximo aceptable (default: 1e-6)
+- **Max. iteraciones**: Límite de iteraciones (default: 100)
+
+### 5. Ejecutar Método (Opción 4)
+- Revise la configuración mostrada
+- Confirme la ejecución
+- Observe la barra de progreso
+- Analice los resultados y gráficos
+
+### 6. Analizar Resultados
+- **Valor de la raíz**: Aproximación encontrada
+- **Error**: Precisión alcanzada
+- **Iteraciones**: Número de pasos realizados
+- **Gráficos**: Visualización de la convergencia
+
+## Solución de Problemas
+
+### Error: "Función no válida"
+- Revise la sintaxis Python
+- Use `**` para potencias, no `^`
+- Verifique nombres de funciones (sin, cos, etc.)
+
+### Error: "Signos iguales en extremos"
+- La función no cambia de signo en [a,b]
+- Intente un intervalo diferente
+- Grafique la función para identificar raíces
+
+### Convergencia lenta
+- Reduzca el tamaño del intervalo inicial
+- Aumente el máximo de iteraciones
+- Considere usar otro método más rápido
+
+### Resultado impreciso
+- Reduzca la tolerancia
+- Verifique que la función sea continua
+- Asegúrese de que hay una sola raíz en el intervalo
+
+---
+
+*Documentación generada para el Proyecto de Métodos Numéricos*  
+*Ingeniería en Computación - Uso Educativo*

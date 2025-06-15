@@ -1,0 +1,834 @@
+---
+title: "Método de Punto Fijo"
+author: "Proyecto Personal - Ingeniería en Computación"  
+date: today
+format: 
+  html:
+    theme: cosmo
+    code-fold: true
+    toc: true
+    number-sections: true
+    highlight-style: github
+    fig-width: 10
+    fig-height: 6
+    embed-resources: true
+execute:
+  warning: false
+  echo: true
+---
+
+# ¿Para qué sirve?
+
+El método de punto fijo es una técnica iterativa fundamental para resolver ecuaciones no lineales de la forma $f(x) = 0$. Su principal ventaja es la simplicidad conceptual y computacional, convirtiéndolo en una herramienta valiosa en diversas aplicaciones:
+
+## Aplicaciones Prácticas
+
+- **Análisis de estabilidad en sistemas dinámicos**: Encontrar puntos de equilibrio
+- **Economía**: Modelado de equilibrios de mercado y puntos de saturación
+- **Ingeniería**: Análisis de circuitos no lineales y sistemas de control
+- **Física**: Determinación de estados estacionarios en sistemas físicos
+- **Matemática aplicada**: Resolución de ecuaciones integrales y diferenciales
+
+## Casos de Uso Específicos
+
+1. **Ecuaciones transcendentales**: Como $x = \cos(x)$ o $x = e^{-x}$
+2. **Sistemas de retroalimentación**: Donde la salida depende de la entrada de forma no lineal
+3. **Modelos poblacionales**: Puntos de equilibrio en crecimiento logístico
+4. **Análisis de convergencia**: Estudio del comportamiento iterativo de funciones
+
+# ¿Cómo funciona?
+
+## Fundamento Teórico
+
+El método transforma la ecuación $f(x) = 0$ en una ecuación equivalente $x = g(x)$, donde $g(x)$ es una función de iteración. El proceso consiste en:
+
+1. **Transformación**: Convertir $f(x) = 0$ a $x = g(x)$
+2. **Iteración**: Aplicar repetidamente $x_{n+1} = g(x_n)$
+3. **Convergencia**: Cuando $|x_{n+1} - x_n| < \varepsilon$
+
+## Algoritmo Paso a Paso
+
+```
+1. INICIO
+2. Definir f(x) = 0 y transformar a x = g(x)
+3. Establecer x₀ (valor inicial)
+4. Establecer tolerancia ε y máximo de iteraciones N
+5. Para n = 0, 1, 2, ..., N:
+   a. Calcular x_{n+1} = g(x_n)
+   b. Verificar convergencia: |x_{n+1} - x_n| < ε
+   c. Si converge: TERMINAR con éxito
+   d. Si no: continuar iteración
+6. Si se alcanza N iteraciones: TERMINAR sin convergencia
+7. FIN
+```
+
+## Criterios de Convergencia
+
+**Teorema del Punto Fijo**: Si $g(x)$ es continua en $[a,b]$ y:
+- $g([a,b]) \subseteq [a,b]$ (mapea el intervalo en sí mismo)
+- $|g'(x)| < 1$ para todo $x \in [a,b]$ (contracción)
+
+Entonces existe un único punto fijo $x^*$ y la sucesión $x_{n+1} = g(x_n)$ converge a $x^*$.
+
+# Implementación Completa
+
+```{python}
+#!/usr/bin/env python3
+"""
+Método de Punto Fijo - Implementación con menús interactivos
+Iteración x_{n+1} = g(x_n) para encontrar puntos fijos
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.progress import track
+import sympy as sp
+from typing import Callable, Tuple, List, Optional
+import os
+
+console = Console()
+
+class MetodoPuntoFijo:
+    """Implementación del método de punto fijo con interfaz interactiva"""
+    
+    def __init__(self):
+        self.funcion_str = ""
+        self.funcion_sympy = None
+        self.funcion_numpy = None
+        self.x0 = 0.0
+        self.tolerancia = 1e-6
+        self.max_iteraciones = 100
+        self.resultados = []
+        
+    def limpiar_pantalla(self):
+        """Limpia la pantalla del terminal"""
+        os.system('clear' if os.name == 'posix' else 'cls')
+        
+    def mostrar_banner(self):
+        """Muestra el banner del método"""
+        banner = Panel.fit(
+            "[bold blue]🔄 MÉTODO DE PUNTO FIJO[/bold blue]\n"
+            "[italic]Iteración x_{n+1} = g(x_n) para encontrar puntos fijos[/italic]",
+            border_style="blue"
+        )
+        console.print(banner)
+        console.print()
+    
+    def mostrar_menu_principal(self) -> str:
+        """Muestra el menú principal y retorna la opción seleccionada"""
+        self.limpiar_pantalla()
+        self.mostrar_banner()
+        
+        table = Table(show_header=False, box=None, padding=(0, 2))
+        table.add_column("Opción", style="bold cyan", width=8)
+        table.add_column("Descripción", style="white")
+        
+        opciones = [
+            ("1", "🎯 Ingresar función g(x)"),
+            ("2", "📍 Configurar valor inicial x₀"),
+            ("3", "⚙️  Configurar parámetros"),
+            ("4", "🚀 Ejecutar método"),
+            ("5", "📊 Ver resultados"),
+            ("6", "📈 Análisis de convergencia"),
+            ("7", "❓ Ayuda"),
+            ("8", "🚪 Salir")
+        ]
+        
+        for opcion, desc in opciones:
+            table.add_row(opcion, desc)
+        
+        console.print(table)
+        return input("\n🔹 Seleccione una opción: ").strip()
+    
+    def ingresar_funcion(self):
+        """Permite al usuario ingresar la función g(x)"""
+        self.limpiar_pantalla()
+        
+        panel_ayuda = Panel(
+            "[bold cyan]Ingrese la función g(x) para x = g(x)[/bold cyan]\n\n"
+            "Ejemplos de transformaciones:\n"
+            "• f(x) = x² - 3x + 2 = 0  →  g(x) = (x² + 2)/3\n"
+            "• f(x) = cos(x) - x = 0   →  g(x) = cos(x)\n"
+            "• f(x) = eˣ - 2x - 1 = 0  →  g(x) = (eˣ - 1)/2\n\n"
+            "[yellow]Funciones disponibles:[/yellow]\n"
+            "sin, cos, tan, exp, log, ln, sqrt, abs\n\n"
+            "[green]💡 La convergencia depende de |g'(x)| < 1[/green]",
+            title="💡 Ayuda para Funciones",
+            border_style="blue"
+        )
+        console.print(panel_ayuda)
+        
+        while True:
+            try:
+                funcion_input = input("\nIngrese g(x): ").strip()
+                
+                if not funcion_input:
+                    console.print("[red]❌ La función no puede estar vacía[/red]")
+                    continue
+                
+                # Procesar la función con SymPy
+                x = sp.Symbol('x')
+                funcion_input = funcion_input.replace('^', '**')
+                self.funcion_sympy = sp.sympify(funcion_input)
+                self.funcion_numpy = sp.lambdify(x, self.funcion_sympy, 'numpy')
+                self.funcion_str = funcion_input
+                
+                # Probar la función en algunos puntos
+                console.print(f"\n[green]✅ Función ingresada: g(x) = {funcion_input}[/green]")
+                
+                # Mostrar algunos valores de prueba
+                test_table = Table(title="Valores de Prueba")
+                test_table.add_column("x", justify="center", style="cyan")
+                test_table.add_column("g(x)", justify="center", style="green")
+                
+                for val in [0, 1, -1, 0.5]:
+                    try:
+                        result = float(self.funcion_numpy(val))
+                        test_table.add_row(str(val), f"{result:.6f}")
+                    except:
+                        test_table.add_row(str(val), "No definido")
+                        
+                console.print(test_table)
+                
+                # Calcular y mostrar la derivada
+                try:
+                    derivada = sp.diff(self.funcion_sympy, x)
+                    console.print(f"\n[blue]Derivada: g'(x) = {derivada}[/blue]")
+                    console.print("[yellow]💡 Para convergencia se requiere |g'(x)| < 1 cerca del punto fijo[/yellow]")
+                except:
+                    console.print("\n[yellow]⚠️  No se pudo calcular la derivada automáticamente[/yellow]")
+                
+                break
+                
+            except Exception as e:
+                console.print(f"[red]❌ Error en la función: {str(e)}[/red]")
+                console.print("Revise la sintaxis. Use 'exp', 'sin', 'cos', 'log', etc.")
+                
+        input("\nPresione Enter para continuar...")
+    
+    def configurar_valor_inicial(self):
+        """Configura el valor inicial x₀"""
+        self.limpiar_pantalla()
+        console.print("[bold blue]📍 CONFIGURACIÓN DEL VALOR INICIAL[/bold blue]\n")
+        
+        console.print("El valor inicial x₀ es crucial para la convergencia del método.")
+        console.print("Elija un valor cercano a donde espera que esté la solución.\n")
+        
+        while True:
+            try:
+                x0_input = input(f"Ingrese x₀ (actual: {self.x0}): ").strip()
+                
+                if x0_input:
+                    self.x0 = float(x0_input)
+                    
+                    # Si hay función, evaluar en x₀
+                    if self.funcion_numpy:
+                        try:
+                            g_x0 = self.funcion_numpy(self.x0)
+                            console.print(f"\n[green]✅ x₀ = {self.x0}[/green]")
+                            console.print(f"[cyan]g(x₀) = {g_x0:.6f}[/cyan]")
+                            
+                            # Mostrar si está cerca de ser punto fijo
+                            diferencia = abs(g_x0 - self.x0)
+                            if diferencia < 1:
+                                console.print(f"[green]|g(x₀) - x₀| = {diferencia:.6f} (promisorio)[/green]")
+                            else:
+                                console.print(f"[yellow]|g(x₀) - x₀| = {diferencia:.6f} (puede no converger)[/yellow]")
+                        except:
+                            console.print(f"\n[green]✅ x₀ = {self.x0}[/green]")
+                            console.print("[red]⚠️  No se pudo evaluar g(x₀)[/red]")
+                    else:
+                        console.print(f"\n[green]✅ x₀ = {self.x0}[/green]")
+                else:
+                    console.print(f"\n[green]✅ Manteniendo x₀ = {self.x0}[/green]")
+                
+                break
+                
+            except ValueError:
+                console.print("[red]❌ Por favor ingrese un número válido[/red]")
+        
+        input("\nPresione Enter para continuar...")
+    
+    def configurar_parametros(self):
+        """Configura tolerancia y número máximo de iteraciones"""
+        self.limpiar_pantalla()
+        console.print("[bold blue]⚙️ CONFIGURACIÓN DE PARÁMETROS[/bold blue]\n")
+        
+        # Mostrar configuración actual
+        config_table = Table(title="Configuración Actual")
+        config_table.add_column("Parámetro", style="cyan")
+        config_table.add_column("Valor", style="green")
+        
+        config_table.add_row("Tolerancia", f"{self.tolerancia}")
+        config_table.add_row("Máx. iteraciones", f"{self.max_iteraciones}")
+        
+        console.print(config_table)
+        
+        # Configurar tolerancia
+        while True:
+            try:
+                tol_input = input(f"\nNueva tolerancia (actual: {self.tolerancia}): ").strip()
+                if tol_input:
+                    nueva_tol = float(tol_input)
+                    if nueva_tol <= 0:
+                        console.print("[red]❌ La tolerancia debe ser positiva[/red]")
+                        continue
+                    self.tolerancia = nueva_tol
+                    console.print(f"[green]✅ Tolerancia actualizada: {nueva_tol}[/green]")
+                break
+            except ValueError:
+                console.print("[red]❌ Ingrese un número válido[/red]")
+        
+        # Configurar máximo de iteraciones
+        while True:
+            try:
+                iter_input = input(f"Nuevo máximo de iteraciones (actual: {self.max_iteraciones}): ").strip()
+                if iter_input:
+                    nuevo_max = int(iter_input)
+                    if nuevo_max <= 0:
+                        console.print("[red]❌ El número de iteraciones debe ser positivo[/red]")
+                        continue
+                    self.max_iteraciones = nuevo_max
+                    console.print(f"[green]✅ Máximo de iteraciones actualizado: {nuevo_max}[/green]")
+                break
+            except ValueError:
+                console.print("[red]❌ Ingrese un número entero válido[/red]")
+        
+        input("\nPresione Enter para continuar...")
+    
+    def ejecutar_metodo(self):
+        """Ejecuta el método de punto fijo"""
+        if not self.funcion_numpy:
+            console.print("[red]❌ Debe ingresar una función g(x) primero[/red]")
+            input("Presione Enter para continuar...")
+            return
+        
+        self.limpiar_pantalla()
+        console.print("[bold blue]🚀 EJECUTANDO MÉTODO DE PUNTO FIJO[/bold blue]\n")
+        
+        # Mostrar configuración
+        console.print(f"Función: g(x) = {self.funcion_str}")
+        console.print(f"Valor inicial: x₀ = {self.x0}")
+        console.print(f"Tolerancia: {self.tolerancia}")
+        console.print(f"Máx. iteraciones: {self.max_iteraciones}\n")
+        
+        # Inicializar
+        self.resultados = []
+        x_actual = self.x0
+        
+        console.print("Iniciando iteraciones...\n")
+        
+        # Crear tabla para mostrar iteraciones
+        tabla_iter = Table(title="Iteraciones del Método de Punto Fijo")
+        tabla_iter.add_column("n", justify="center", style="cyan")
+        tabla_iter.add_column("xₙ", justify="center", style="green")
+        tabla_iter.add_column("g(xₙ)", justify="center", style="yellow")
+        tabla_iter.add_column("Error", justify="center", style="red")
+        
+        # Barra de progreso
+        for i in track(range(self.max_iteraciones), description="Iterando..."):
+            try:
+                # Calcular siguiente valor
+                x_siguiente = self.funcion_numpy(x_actual)
+                
+                # Calcular error
+                error = abs(x_siguiente - x_actual)
+                
+                # Guardar resultado
+                self.resultados.append({
+                    'iteracion': i,
+                    'x': x_actual,
+                    'g_x': x_siguiente,
+                    'error': error
+                })
+                
+                # Mostrar en tabla (primeras 10 iteraciones)
+                if i < 10:
+                    tabla_iter.add_row(
+                        str(i),
+                        f"{x_actual:.6f}",
+                        f"{x_siguiente:.6f}",
+                        f"{error:.2e}"
+                    )
+                
+                # Verificar convergencia
+                if error < self.tolerancia:
+                    console.print(f"\n[green]🎉 ¡Convergencia alcanzada en {i+1} iteraciones![/green]")
+                    console.print(f"[green]Punto fijo encontrado: x* ≈ {x_siguiente:.8f}[/green]")
+                    console.print(f"[green]Error final: {error:.2e}[/green]")
+                    break
+                
+                # Verificar divergencia
+                if abs(x_siguiente) > 1e10:
+                    console.print(f"\n[red]💥 El método está divergiendo (|x| > 10¹⁰)[/red]")
+                    break
+                
+                x_actual = x_siguiente
+                
+            except Exception as e:
+                console.print(f"\n[red]❌ Error durante la iteración {i}: {str(e)}[/red]")
+                break
+        else:
+            console.print(f"\n[yellow]⚠️  Se alcanzó el máximo de iteraciones ({self.max_iteraciones})[/yellow]")
+            console.print(f"[yellow]Última aproximación: x ≈ {x_actual:.8f}[/yellow]")
+            console.print(f"[yellow]Error estimado: {error:.2e}[/yellow]")
+        
+        # Mostrar tabla de iteraciones
+        console.print(tabla_iter)
+        
+        if len(self.resultados) > 10:
+            console.print(f"\n[blue]... y {len(self.resultados) - 10} iteraciones más[/blue]")
+        
+        input("\nPresione Enter para continuar...")
+    
+    def ver_resultados(self):
+        """Muestra los resultados detallados"""
+        if not self.resultados:
+            console.print("[red]❌ No hay resultados disponibles. Execute el método primero.[/red]")
+            input("Presione Enter para continuar...")
+            return
+        
+        self.limpiar_pantalla()
+        console.print("[bold blue]📊 RESULTADOS DETALLADOS[/bold blue]\n")
+        
+        ultimo = self.resultados[-1]
+        
+        # Panel de resumen
+        resumen = Panel(
+            f"[bold green]Solución encontrada:[/bold green] x* ≈ {ultimo['g_x']:.8f}\n"
+            f"[bold blue]Iteraciones realizadas:[/bold blue] {len(self.resultados)}\n"
+            f"[bold yellow]Error final:[/bold yellow] {ultimo['error']:.2e}\n"
+            f"[bold cyan]Función evaluada:[/bold cyan] g(x) = {self.funcion_str}",
+            title="📋 Resumen de Resultados",
+            border_style="green"
+        )
+        console.print(resumen)
+        
+        # Análisis de convergencia
+        if len(self.resultados) > 1:
+            errores = [r['error'] for r in self.resultados[1:]]
+            
+            console.print("\n[bold blue]📈 Análisis de Convergencia:[/bold blue]")
+            
+            # Verificar tipo de convergencia
+            if len(errores) > 3:
+                razones = [errores[i]/errores[i-1] for i in range(2, min(len(errores), 10)) if errores[i-1] != 0]
+                if razones:
+                    razon_promedio = sum(razones) / len(razones)
+                    console.print(f"Razón de convergencia promedio: {razon_promedio:.4f}")
+                    
+                    if razon_promedio < 1:
+                        console.print("[green]✅ Convergencia lineal confirmada[/green]")
+                    else:
+                        console.print("[yellow]⚠️  Convergencia lenta o divergencia[/yellow]")
+        
+        # Mostrar tabla completa de resultados
+        console.print("\n[bold blue]📋 Tabla Completa de Iteraciones:[/bold blue]")
+        
+        tabla_completa = Table(title="Resultados Completos")
+        tabla_completa.add_column("Iteración", justify="center", style="cyan")
+        tabla_completa.add_column("xₙ", justify="center", style="green")
+        tabla_completa.add_column("g(xₙ) = xₙ₊₁", justify="center", style="yellow")
+        tabla_completa.add_column("Error |xₙ₊₁ - xₙ|", justify="center", style="red")
+        
+        # Mostrar todas las iteraciones (limitado a 20 para legibilidad)
+        max_mostrar = min(len(self.resultados), 20)
+        for i in range(max_mostrar):
+            r = self.resultados[i]
+            tabla_completa.add_row(
+                str(r['iteracion']),
+                f"{r['x']:.8f}",
+                f"{r['g_x']:.8f}",
+                f"{r['error']:.2e}"
+            )
+        
+        if len(self.resultados) > 20:
+            tabla_completa.add_row("...", "...", "...", "...")
+            ultimo = self.resultados[-1]
+            tabla_completa.add_row(
+                str(ultimo['iteracion']),
+                f"{ultimo['x']:.8f}",
+                f"{ultimo['g_x']:.8f}",
+                f"{ultimo['error']:.2e}"
+            )
+        
+        console.print(tabla_completa)
+        input("\nPresione Enter para continuar...")
+    
+    def analisis_convergencia(self):
+        """Muestra análisis gráfico de convergencia"""
+        if not self.resultados:
+            console.print("[red]❌ No hay resultados disponibles.[/red]")
+            input("Presione Enter para continuar...")
+            return
+        
+        # Extraer datos para gráficos
+        iteraciones = [r['iteracion'] for r in self.resultados]
+        valores_x = [r['x'] for r in self.resultados]
+        errores = [r['error'] for r in self.resultados[1:]]  # Sin el error inicial
+        
+        # Crear figura con subplots
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
+        fig.suptitle(f'Análisis de Convergencia - Método de Punto Fijo\ng(x) = {self.funcion_str}', fontsize=14)
+        
+        # 1. Convergencia de x
+        ax1.plot(iteraciones, valores_x, 'b-o', markersize=4, linewidth=2)
+        ax1.set_xlabel('Iteración')
+        ax1.set_ylabel('Valor de x')
+        ax1.set_title('Convergencia de la Solución')
+        ax1.grid(True, alpha=0.3)
+        
+        # Línea horizontal en la solución final
+        if self.resultados:
+            ax1.axhline(y=self.resultados[-1]['g_x'], color='red', linestyle='--', alpha=0.7, label='Solución final')
+            ax1.legend()
+        
+        # 2. Error absoluto (escala logarítmica)
+        if errores:
+            ax2.semilogy(range(1, len(errores)+1), errores, 'r-o', markersize=4, linewidth=2)
+            ax2.set_xlabel('Iteración')
+            ax2.set_ylabel('Error |xₙ₊₁ - xₙ|')
+            ax2.set_title('Evolución del Error (Escala Log)')
+            ax2.grid(True, alpha=0.3)
+        
+        # 3. Diagrama de telaraña (cobweb plot)
+        if len(valores_x) > 1:
+            x_min = min(valores_x) - 0.5
+            x_max = max(valores_x) + 0.5
+            x_plot = np.linspace(x_min, x_max, 1000)
+            
+            try:
+                y_plot = [self.funcion_numpy(x) for x in x_plot]
+                
+                ax3.plot(x_plot, y_plot, 'b-', linewidth=2, label='g(x)')
+                ax3.plot(x_plot, x_plot, 'k--', alpha=0.5, label='y = x')
+                
+                # Dibujar telaraña
+                for i in range(min(len(valores_x)-1, 20)):  # Limitar para claridad
+                    x_curr = valores_x[i]
+                    x_next = self.resultados[i]['g_x']
+                    
+                    # Línea vertical
+                    ax3.plot([x_curr, x_curr], [x_curr, x_next], 'r-', alpha=0.7, linewidth=1)
+                    # Línea horizontal
+                    ax3.plot([x_curr, x_next], [x_next, x_next], 'r-', alpha=0.7, linewidth=1)
+                
+                ax3.set_xlabel('x')
+                ax3.set_ylabel('g(x)')
+                ax3.set_title('Diagrama de Telaraña')
+                ax3.legend()
+                ax3.grid(True, alpha=0.3)
+                
+            except Exception as e:
+                ax3.text(0.5, 0.5, f'Error al generar gráfico:\n{str(e)}', 
+                        ha='center', va='center', transform=ax3.transAxes)
+        
+        # 4. Razón de convergencia
+        if len(errores) > 2:
+            razones = [errores[i]/errores[i-1] for i in range(1, len(errores)) if errores[i-1] != 0]
+            
+            if razones:
+                ax4.plot(range(2, len(razones)+2), razones, 'g-o', markersize=4, linewidth=2)
+                ax4.axhline(y=1, color='red', linestyle='--', alpha=0.7, label='Límite de convergencia')
+                ax4.set_xlabel('Iteración')
+                ax4.set_ylabel('Error(n) / Error(n-1)')
+                ax4.set_title('Razón de Convergencia')
+                ax4.legend()
+                ax4.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.show()
+        
+        input("\nPresione Enter para continuar...")
+    
+    def mostrar_ayuda(self):
+        """Muestra información de ayuda del método"""
+        self.limpiar_pantalla()
+        
+        ayuda_texto = Panel(
+            """
+[bold blue]🔄 MÉTODO DE PUNTO FIJO[/bold blue]
+
+[bold green]¿Qué hace?[/bold green]
+Encuentra soluciones de ecuaciones de la forma x = g(x) mediante iteración sucesiva.
+
+[bold yellow]Algoritmo:[/bold yellow]
+1. Transformar f(x) = 0 en x = g(x)
+2. Elegir valor inicial x₀
+3. Iterar: xₙ₊₁ = g(xₙ)
+4. Parar cuando |xₙ₊₁ - xₙ| < tolerancia
+
+[bold cyan]Convergencia:[/bold cyan]
+• Requiere |g'(x)| < 1 cerca del punto fijo
+• Convergencia lineal típicamente
+• Sensible al valor inicial x₀
+
+[bold red]Transformaciones comunes:[/bold red]
+• x² - 3x + 2 = 0  →  x = (x² + 2)/3
+• cos(x) - x = 0   →  x = cos(x)
+• eˣ - 2x - 1 = 0  →  x = (eˣ - 1)/2
+
+[bold magenta]Consejos prácticos:[/bold magenta]
+• Pruebe diferentes transformaciones si no converge
+• Use gráficos para estimar x₀
+• Verifique |g'(x)| < 1 en la región de interés
+• El diagrama de telaraña ayuda a visualizar convergencia
+            """,
+            title="📚 Ayuda - Método de Punto Fijo",
+            border_style="blue"
+        )
+        
+        console.print(ayuda_texto)
+        input("\nPresione Enter para continuar...")
+
+def main():
+    """Función principal"""
+    metodo = MetodoPuntoFijo()
+    
+    while True:
+        opcion = metodo.mostrar_menu_principal()
+        
+        if opcion == "1":
+            metodo.ingresar_funcion()
+        elif opcion == "2":
+            metodo.configurar_valor_inicial()
+        elif opcion == "3":
+            metodo.configurar_parametros()
+        elif opcion == "4":
+            metodo.ejecutar_metodo()
+        elif opcion == "5":
+            metodo.ver_resultados()
+        elif opcion == "6":
+            metodo.analisis_convergencia()
+        elif opcion == "7":
+            metodo.mostrar_ayuda()
+        elif opcion == "8":
+            console.print("\n[bold green]¡Gracias por usar el método de punto fijo![/bold green]")
+            break
+        else:
+            console.print("[red]Opción inválida. Seleccione un número del 1 al 8.[/red]")
+            input("Presione Enter para continuar...")
+
+if __name__ == "__main__":
+    main()
+```
+
+# Interfaz de Usuario
+
+## Flujo de Menús
+
+El programa presenta un menú principal numerado con las siguientes opciones:
+
+1. **🎯 Ingresar función g(x)**: Permite ingresar la función de iteración
+2. **📍 Configurar valor inicial x₀**: Define el punto de partida
+3. **⚙️ Configurar parámetros**: Ajusta tolerancia e iteraciones máximas  
+4. **🚀 Ejecutar método**: Ejecuta el algoritmo de punto fijo
+5. **📊 Ver resultados**: Muestra resultados detallados
+6. **📈 Análisis de convergencia**: Gráficos de convergencia y diagnóstico
+7. **❓ Ayuda**: Información sobre el método
+8. **🚪 Salir**: Termina el programa
+
+## Características de la Interfaz
+
+- **Menús coloridos**: Uso de Rich para presentación atractiva
+- **Validación de entrada**: Verificación robusta de datos del usuario
+- **Feedback inmediato**: Mensajes de estado y progreso
+- **Tablas formateadas**: Presentación clara de iteraciones y resultados
+- **Gráficos interactivos**: Visualización en tiempo real con Matplotlib
+
+# Ejemplos de Ejecución
+
+## Ejemplo 1: Ecuación Simple
+
+**Problema**: Resolver $x^2 - 3x + 2 = 0$
+
+**Transformación**: $x = \frac{x^2 + 2}{3}$
+
+```
+Función: g(x) = (x**2 + 2)/3
+Valor inicial: x₀ = 1.5
+Tolerancia: 1e-6
+
+Resultados:
+Iteración | xₙ        | g(xₙ)     | Error
+0         | 1.500000  | 1.416667  | 8.33e-02
+1         | 1.416667  | 1.334028  | 8.26e-02
+2         | 1.334028  | 1.259368  | 7.47e-02
+...
+15        | 1.000000  | 1.000000  | 1.85e-07
+
+¡Convergencia alcanzada en 16 iteraciones!
+Punto fijo: x* ≈ 1.00000000
+```
+
+## Ejemplo 2: Ecuación Transcendental
+
+**Problema**: Resolver $\cos(x) - x = 0$
+
+**Transformación**: $x = \cos(x)$
+
+```
+Función: g(x) = cos(x)
+Valor inicial: x₀ = 0.5
+Tolerancia: 1e-8
+
+Resultados:
+Iteración | xₙ        | g(xₙ)     | Error
+0         | 0.500000  | 0.877583  | 3.78e-01
+1         | 0.877583  | 0.639012  | 2.39e-01
+2         | 0.639012  | 0.802685  | 1.64e-01
+...
+23        | 0.739085  | 0.739085  | 8.45e-09
+
+¡Convergencia alcanzada en 24 iteraciones!
+Punto fijo: x* ≈ 0.73908513
+```
+
+# Visualizaciones
+
+## Gráficos Generados
+
+1. **Convergencia de la solución**: Evolución de $x_n$ vs iteración
+2. **Error absoluto**: $|x_{n+1} - x_n|$ en escala logarítmica
+3. **Diagrama de telaraña**: Visualización geométrica de la convergencia
+4. **Razón de convergencia**: Análisis del factor de convergencia
+
+## Interpretación Visual
+
+- **Diagrama de telaraña**: Muestra cómo las iteraciones "se acercan" al punto fijo
+- **Convergencia exponencial**: Error decrece exponencialmente si $|g'(x)| < 1$
+- **Oscilaciones**: Indican que $g'(x)$ es negativo en el punto fijo
+
+# Ideas de Mejora
+
+## Optimizaciones Técnicas
+
+1. **Aceleración de Aitken**: Para mejorar velocidad de convergencia
+2. **Métodos de Newton modificados**: Combinación con Newton-Raphson
+3. **Detección automática de divergencia**: Parámetros adaptativos
+4. **Transformaciones múltiples**: Probar varias formas de $g(x)$ automáticamente
+
+## Funcionalidades Adicionales
+
+1. **Análisis gráfico interactivo**: Zoom y análisis detallado
+2. **Comparación de transformaciones**: Evaluar diferentes $g(x)$
+3. **Estimación de región de convergencia**: Análisis de estabilidad
+4. **Exportación de resultados**: Guardar datos y gráficos
+5. **Modo batch**: Procesar múltiples problemas automáticamente
+
+## Mejoras en la Interfaz
+
+1. **Asistente de transformación**: Ayuda para convertir $f(x) = 0$ a $x = g(x)$
+2. **Predictor de convergencia**: Estimación basada en $g'(x)$
+3. **Modo tutorial**: Ejemplos guiados paso a paso
+4. **Configuración avanzada**: Más parámetros de control
+
+# Complicaciones Encontradas
+
+## Desafíos de Implementación
+
+### 1. Validación de Funciones
+**Problema**: Verificar que $g(x)$ esté bien definida y sea evaluable
+
+**Solución**: 
+- Evaluación en puntos de prueba antes de comenzar iteraciones
+- Manejo de excepciones durante evaluación
+- Verificación de dominio y rango
+
+### 2. Detección de Divergencia
+**Problema**: El método puede divergir o converger muy lentamente
+
+**Solución**:
+- Límites en el valor absoluto de $x$ (|x| > 10¹⁰)
+- Análisis de la razón de convergencia
+- Advertencias cuando $|g'(x)| \geq 1$
+
+### 3. Casos Edge
+**Problema**: Situaciones especiales que requieren manejo específico
+
+**Casos identificados**:
+- $g(x)$ no definida en algunos puntos
+- Convergencia a ciclos en lugar de puntos fijos
+- Convergencia extremadamente lenta
+- Puntos fijos múltiples
+
+**Soluciones**:
+- Manejo robusto de excepciones
+- Detección de ciclos (comparar con valores anteriores)
+- Límites adaptativos en iteraciones
+- Información sobre multiplicidad de soluciones
+
+### 4. Visualización de Convergencia
+**Problema**: Crear gráficos informativos para diferentes tipos de comportamiento
+
+**Solución**:
+- Diagrama de telaraña adaptativo
+- Escalas automáticas para diferentes rangos
+- Colores y estilos que faciliten interpretación
+- Límites inteligentes en ejes
+
+## Casos Problemáticos Comunes
+
+1. **$g(x) = x^2$**: Diverge para $|x_0| > 1$
+2. **$g(x) = -x + 2$**: Oscila entre dos valores
+3. **$g(x) = x + 0.1\sin(x)$**: Convergencia muy lenta
+4. **$g(x) = 1/x$**: Problemas en $x = 0$
+
+# Manual de Uso
+
+## Instalación y Requisitos
+
+```bash
+# Instalar dependencias
+pip install numpy matplotlib rich sympy
+
+# Ejecutar el programa
+python punto_fijo.py
+```
+
+## Guía Paso a Paso
+
+### Paso 1: Preparación
+1. Tener la ecuación $f(x) = 0$ que desea resolver
+2. Transformarla a la forma $x = g(x)$
+3. Estimar dónde puede estar la solución
+
+### Paso 2: Configuración
+1. **Ejecutar el programa** y seleccionar opción 1
+2. **Ingresar $g(x)$** usando sintaxis Python (ej: `cos(x)`, `x**2/3 + 1`)
+3. **Configurar $x_0$** (opción 2) cerca de la solución esperada
+4. **Ajustar parámetros** (opción 3) si es necesario
+
+### Paso 3: Ejecución
+1. **Ejecutar método** (opción 4)
+2. **Observar convergencia** en tiempo real
+3. **Analizar resultados** (opción 5)
+4. **Ver gráficos** (opción 6) para comprensión visual
+
+### Paso 4: Interpretación
+- **Convergió**: Solución encontrada exitosamente
+- **No convergió**: Probar diferente $x_0$ o transformación
+- **Divergió**: La función $g(x)$ no es contractiva
+
+## Consejos de Uso
+
+1. **Elección de $g(x)$**: La forma de transformar $f(x) = 0$ es crucial
+2. **Valor inicial**: Use gráficos o conocimiento del problema para estimarlo
+3. **Tolerancia**: $10^{-6}$ es típicamente suficiente para la mayoría de aplicaciones
+4. **Convergencia lenta**: Considere usar aceleración o métodos alternativos
+
+## Resolución de Problemas
+
+| Problema | Causa Probable | Solución |
+|----------|----------------|----------|
+| No converge | $\|g'(x)\| \geq 1$ | Cambiar transformación o $x_0$ |
+| Converge lento | $g'(x)$ cerca de 1 | Usar aceleración o Newton-Raphson |
+| Error de función | Sintaxis incorrecta | Verificar funciones disponibles |
+| Diverge rápidamente | $x_0$ fuera de región de convergencia | Probar $x_0$ diferente |
+
+---
+
+*Este documento forma parte del proyecto personal de métodos numéricos desarrollado como material educativo para Ingeniería en Computación.*

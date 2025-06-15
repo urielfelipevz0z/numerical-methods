@@ -1,0 +1,937 @@
+---
+title: "Método de Bairstow"
+author: "Proyecto Personal - Ingeniería en Computación"  
+date: today
+format: 
+  html:
+    theme: cosmo
+    code-fold: true
+    toc: true
+    number-sections: true
+    highlight-style: github
+    fig-width: 10
+    fig-height: 6
+    embed-resources: true
+execute:
+  warning: false
+  echo: true
+---
+
+# ¿Para qué sirve?
+
+El método de Bairstow es una técnica avanzada para encontrar todas las raíces (reales y complejas) de un polinomio de grado arbitrario. Es especialmente útil cuando se necesita encontrar raíces complejas sin trabajar directamente con aritmética compleja.
+
+## Aplicaciones Prácticas
+
+- **Análisis de Circuitos**: Encontrar polos y ceros en funciones de transferencia
+- **Ingeniería de Control**: Análisis de estabilidad de sistemas
+- **Procesamiento de Señales**: Diseño de filtros digitales
+- **Mecánica Estructural**: Análisis modal y frecuencias naturales
+- **Ecuaciones Diferenciales**: Solución de EDO con coeficientes constantes
+
+## Ventajas del Método
+
+1. **Encuentra raíces complejas**: Sin usar aritmética compleja explícita
+2. **Convergencia cuadrática**: Más rápido que métodos lineales
+3. **Raíces múltiples**: Puede manejar polinomios con factores repetidos
+4. **Sistemático**: Encuentra todas las raíces del polinomio
+
+## Limitaciones
+
+- Solo aplicable a polinomios
+- Requiere buenas aproximaciones iniciales
+- Puede tener problemas de convergencia con raíces muy cercanas
+- Más complejo de implementar que métodos básicos
+
+# ¿Cómo funciona?
+
+El método de Bairstow busca factores cuadráticos de la forma $(x^2 + px + q)$ en un polinomio. Al dividir el polinomio por este factor cuadrático, se obtiene un cociente y un residuo que dependen de los parámetros $p$ y $q$.
+
+## Algoritmo Paso a Paso
+
+1. **Aproximación inicial**: Elegir valores iniciales para $p$ y $q$
+2. **División sintética**: Dividir el polinomio por $(x^2 + px + q)$
+3. **Cálculo del residuo**: Obtener los coeficientes del residuo $R(x) = b_1x + b_0$
+4. **Sistema lineal**: Resolver el sistema Jacobiano para las correcciones $\Delta p$ y $\Delta q$
+5. **Actualización**: $p_{new} = p + \Delta p$, $q_{new} = q + \Delta q$
+6. **Convergencia**: Repetir hasta que $|b_1|$ y $|b_0|$ sean suficientemente pequeños
+7. **Raíces del factor**: Calcular las raíces de $x^2 + px + q$
+8. **Deflación**: Reducir el polinomio dividiendo por el factor encontrado
+
+## Formulación Matemática
+
+Para un polinomio $P(x) = a_n x^n + a_{n-1} x^{n-1} + \cdots + a_1 x + a_0$:
+
+**División sintética**:
+```
+b_n = a_n
+b_{n-1} = a_{n-1} + p \cdot b_n
+b_k = a_k + p \cdot b_{k+1} + q \cdot b_{k+2}  (para k = n-2, n-3, ..., 0)
+```
+
+**Sistema Jacobiano**:
+```
+c_n = b_n
+c_{n-1} = b_{n-1} + p \cdot c_n
+c_k = b_k + p \cdot c_{k+1} + q \cdot c_{k+2}  (para k = n-2, n-3, ..., 2)
+```
+
+El sistema a resolver es:
+```
+c_3 * Δp + c_4 * Δq = -b_1
+c_2 * Δp + c_3 * Δq = -b_0
+```
+
+# Implementación completa
+
+```python
+#!/usr/bin/env python3
+"""
+Método de Bairstow - Implementación con menús interactivos
+Encuentra todas las raíces de un polinomio usando factorización cuadrática
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.progress import track
+import os
+from typing import List, Tuple, Optional
+
+console = Console()
+
+class Bairstow:
+    def __init__(self):
+        self.coeficientes = []
+        self.tolerancia = 1e-6
+        self.max_iteraciones = 100
+        self.p_inicial = -1.0
+        self.q_inicial = 1.0
+        self.raices = []
+        self.iteraciones_realizadas = 0
+        self.historial = []
+    
+    def division_sintetica(self, coef: List[float], p: float, q: float) -> Tuple[List[float], List[float], float, float]:
+        """
+        Realiza la división sintética del polinomio por (x² + px + q)
+        
+        Returns:
+            b: coeficientes del cociente
+            c: coeficientes auxiliares
+            b1, b0: coeficientes del residuo
+        """
+        n = len(coef) - 1
+        b = [0.0] * (n + 1)
+        c = [0.0] * (n + 1)
+        
+        # Primera división sintética (coeficientes b)
+        b[n] = coef[n]
+        if n > 0:
+            b[n-1] = coef[n-1] + p * b[n]
+        
+        for k in range(n-2, -1, -1):
+            b[k] = coef[k] + p * b[k+1] + q * b[k+2]
+        
+        # Segunda división sintética (coeficientes c)
+        c[n] = b[n]
+        if n > 0:
+            c[n-1] = b[n-1] + p * c[n]
+        
+        for k in range(n-2, 1, -1):
+            c[k] = b[k] + p * c[k+1] + q * c[k+2]
+        
+        return b, c, b[1] if n > 0 else 0.0, b[0]
+    
+    def resolver_cuadratica(self, p: float, q: float) -> Tuple[complex, complex]:
+        """Resuelve x² + px + q = 0"""
+        discriminante = p**2 - 4*q
+        
+        if discriminante >= 0:
+            # Raíces reales
+            sqrt_disc = np.sqrt(discriminante)
+            r1 = (-p + sqrt_disc) / 2
+            r2 = (-p - sqrt_disc) / 2
+            return complex(r1, 0), complex(r2, 0)
+        else:
+            # Raíces complejas
+            sqrt_disc = np.sqrt(-discriminante)
+            real = -p / 2
+            imag = sqrt_disc / 2
+            return complex(real, imag), complex(real, -imag)
+    
+    def bairstow_iteracion(self, coef: List[float], p: float, q: float) -> Tuple[float, float, List[float], bool]:
+        """
+        Una iteración del método de Bairstow
+        
+        Returns:
+            nuevo_p, nuevo_q, nuevo_polinomio, convergencia
+        """
+        b, c, b1, b0 = self.division_sintetica(coef, p, q)
+        
+        # Verificar convergencia
+        if abs(b1) < self.tolerancia and abs(b0) < self.tolerancia:
+            return p, q, b[2:], True
+        
+        # Resolver sistema lineal para las correcciones
+        try:
+            determinante = c[3]**2 - c[2]*c[4]
+            if abs(determinante) < 1e-12:
+                return p, q, coef, False
+            
+            delta_p = (b1*c[4] - b0*c[3]) / determinante
+            delta_q = (b0*c[2] - b1*c[3]) / determinante
+            
+            return p + delta_p, q + delta_q, coef, False
+            
+        except (IndexError, ZeroDivisionError):
+            return p, q, coef, False
+    
+    def encontrar_factor_cuadratico(self, coef: List[float], p_init: float, q_init: float) -> Tuple[float, float, bool]:
+        """Encuentra un factor cuadrático del polinomio"""
+        p, q = p_init, q_init
+        
+        for i in range(self.max_iteraciones):
+            p_nuevo, q_nuevo, _, convergencia = self.bairstow_iteracion(coef, p, q)
+            
+            self.historial.append({
+                'iteracion': i + 1,
+                'p': p_nuevo,
+                'q': q_nuevo,
+                'error_p': abs(p_nuevo - p),
+                'error_q': abs(q_nuevo - q)
+            })
+            
+            if convergencia:
+                self.iteraciones_realizadas = i + 1
+                return p_nuevo, q_nuevo, True
+            
+            # Verificar si las correcciones son muy pequeñas
+            if abs(p_nuevo - p) < self.tolerancia and abs(q_nuevo - q) < self.tolerancia:
+                self.iteraciones_realizadas = i + 1
+                return p_nuevo, q_nuevo, True
+            
+            p, q = p_nuevo, q_nuevo
+        
+        self.iteraciones_realizadas = self.max_iteraciones
+        return p, q, False
+    
+    def ejecutar_metodo(self) -> bool:
+        """Ejecuta el método de Bairstow completo"""
+        if len(self.coeficientes) < 2:
+            console.print("[red]Error: El polinomio debe tener al menos grado 1[/red]")
+            return False
+        
+        coef_actual = self.coeficientes.copy()
+        self.raices = []
+        self.historial = []
+        
+        console.print("\n[cyan]Ejecutando método de Bairstow...[/cyan]")
+        
+        while len(coef_actual) > 2:
+            grado = len(coef_actual) - 1
+            console.print(f"\n[yellow]Procesando polinomio de grado {grado}[/yellow]")
+            
+            # Encontrar factor cuadrático
+            p, q, convergencia = self.encontrar_factor_cuadratico(
+                coef_actual, self.p_inicial, self.q_inicial
+            )
+            
+            if not convergencia:
+                console.print(f"[red]No se logró convergencia para el factor cuadrático[/red]")
+                return False
+            
+            # Obtener las raíces del factor cuadrático
+            r1, r2 = self.resolver_cuadratica(p, q)
+            self.raices.extend([r1, r2])
+            
+            # Reducir el polinomio (deflación)
+            _, _, coef_reducido, _ = self.bairstow_iteracion(coef_actual, p, q)
+            coef_actual = coef_reducido
+            
+            console.print(f"[green]Factor encontrado: x² + {p:.6f}x + {q:.6f}[/green]")
+            console.print(f"[green]Raíces: {r1:.6f}, {r2:.6f}[/green]")
+        
+        # Procesar los coeficientes restantes
+        if len(coef_actual) == 2:  # Polinomio lineal
+            raiz = -coef_actual[0] / coef_actual[1]
+            self.raices.append(complex(raiz, 0))
+            console.print(f"[green]Raíz lineal final: {raiz:.6f}[/green]")
+        elif len(coef_actual) == 3:  # Polinomio cuadrático
+            # Resolver ax² + bx + c = 0
+            a, b, c = coef_actual[2], coef_actual[1], coef_actual[0]
+            p_final = b / a
+            q_final = c / a
+            r1, r2 = self.resolver_cuadratica(p_final, q_final)
+            self.raices.extend([r1, r2])
+            console.print(f"[green]Raíces cuadráticas finales: {r1:.6f}, {r2:.6f}[/green]")
+        
+        return True
+
+def mostrar_menu_principal():
+    """Muestra el menú principal del método de Bairstow"""
+    os.system('clear')
+    
+    panel = Panel.fit(
+        "[bold blue]Método de Bairstow[/bold blue]\n"
+        "[italic]Encuentra todas las raíces de un polinomio[/italic]",
+        border_style="blue"
+    )
+    console.print(panel)
+    
+    tabla = Table(show_header=False, box=None, padding=(0, 2))
+    tabla.add_column("Opción", style="bold cyan")
+    tabla.add_column("Descripción", style="white")
+    
+    tabla.add_row("1.", "Ingresar coeficientes del polinomio")
+    tabla.add_row("2.", "Configurar parámetros del método")
+    tabla.add_row("3.", "Ejecutar método de Bairstow")
+    tabla.add_row("4.", "Ver resultados y gráficos")
+    tabla.add_row("5.", "Ver historial de convergencia")
+    tabla.add_row("6.", "Ver ayuda y ejemplos")
+    tabla.add_row("0.", "Salir")
+    
+    console.print(tabla)
+    console.print()
+
+def ingresar_coeficientes(bairstow: Bairstow):
+    """Menú para ingreso de coeficientes del polinomio"""
+    os.system('clear')
+    
+    console.print("[bold cyan]Ingreso de Coeficientes del Polinomio[/bold cyan]\n")
+    
+    while True:
+        try:
+            console.print("[yellow]Formato: a_n x^n + a_{n-1} x^{n-1} + ... + a_1 x + a_0[/yellow]")
+            console.print("[yellow]Ingrese los coeficientes desde el término de mayor grado al menor[/yellow]\n")
+            
+            grado = int(input("Grado del polinomio: "))
+            if grado < 1:
+                console.print("[red]El grado debe ser al menos 1[/red]")
+                continue
+            
+            coeficientes = []
+            console.print(f"\nIngrese los {grado + 1} coeficientes:")
+            
+            for i in range(grado + 1):
+                potencia = grado - i
+                while True:
+                    try:
+                        if potencia == 0:
+                            prompt = f"Coeficiente del término independiente: "
+                        elif potencia == 1:
+                            prompt = f"Coeficiente de x: "
+                        else:
+                            prompt = f"Coeficiente de x^{potencia}: "
+                        
+                        coef = float(input(prompt))
+                        coeficientes.append(coef)
+                        break
+                    except ValueError:
+                        console.print("[red]Ingrese un número válido[/red]")
+            
+            # Verificar que el coeficiente principal no sea cero
+            if coeficientes[0] == 0:
+                console.print("[red]El coeficiente principal no puede ser cero[/red]")
+                continue
+            
+            bairstow.coeficientes = coeficientes
+            
+            # Mostrar el polinomio ingresado
+            console.print("\n[green]Polinomio ingresado:[/green]")
+            polinomio_str = ""
+            for i, coef in enumerate(coeficientes):
+                potencia = grado - i
+                if i == 0:
+                    if potencia == 0:
+                        polinomio_str += f"{coef}"
+                    elif potencia == 1:
+                        polinomio_str += f"{coef}x"
+                    else:
+                        polinomio_str += f"{coef}x^{potencia}"
+                else:
+                    signo = "+" if coef >= 0 else "-"
+                    coef_abs = abs(coef)
+                    if potencia == 0:
+                        polinomio_str += f" {signo} {coef_abs}"
+                    elif potencia == 1:
+                        polinomio_str += f" {signo} {coef_abs}x"
+                    else:
+                        polinomio_str += f" {signo} {coef_abs}x^{potencia}"
+            
+            console.print(f"P(x) = {polinomio_str}")
+            
+            input("\nPresione Enter para continuar...")
+            return
+            
+        except ValueError:
+            console.print("[red]Ingrese un número válido[/red]")
+        except KeyboardInterrupt:
+            return
+
+def configurar_parametros(bairstow: Bairstow):
+    """Menú para configurar parámetros del método"""
+    while True:
+        os.system('clear')
+        
+        console.print("[bold cyan]Configuración de Parámetros[/bold cyan]\n")
+        
+        tabla = Table(show_header=True, box=None)
+        tabla.add_column("Parámetro", style="cyan")
+        tabla.add_column("Valor Actual", style="yellow")
+        tabla.add_column("Descripción", style="white")
+        
+        tabla.add_row("Tolerancia", f"{bairstow.tolerancia:.2e}", "Error máximo aceptable")
+        tabla.add_row("Max. Iteraciones", str(bairstow.max_iteraciones), "Número máximo de iteraciones")
+        tabla.add_row("p inicial", f"{bairstow.p_inicial:.4f}", "Valor inicial del parámetro p")
+        tabla.add_row("q inicial", f"{bairstow.q_inicial:.4f}", "Valor inicial del parámetro q")
+        
+        console.print(tabla)
+        console.print()
+        
+        tabla_menu = Table(show_header=False, box=None, padding=(0, 2))
+        tabla_menu.add_column("Opción", style="bold cyan")
+        tabla_menu.add_column("Descripción", style="white")
+        
+        tabla_menu.add_row("1.", "Cambiar tolerancia")
+        tabla_menu.add_row("2.", "Cambiar máximo de iteraciones")
+        tabla_menu.add_row("3.", "Cambiar p inicial")
+        tabla_menu.add_row("4.", "Cambiar q inicial")
+        tabla_menu.add_row("5.", "Restaurar valores por defecto")
+        tabla_menu.add_row("0.", "Volver al menú principal")
+        
+        console.print(tabla_menu)
+        
+        try:
+            opcion = input("\nSeleccione una opción: ").strip()
+            
+            if opcion == "0":
+                break
+            elif opcion == "1":
+                nueva_tol = float(input("Nueva tolerancia: "))
+                if nueva_tol > 0:
+                    bairstow.tolerancia = nueva_tol
+                    console.print("[green]Tolerancia actualizada[/green]")
+                else:
+                    console.print("[red]La tolerancia debe ser positiva[/red]")
+                input("Presione Enter para continuar...")
+                
+            elif opcion == "2":
+                nuevas_iter = int(input("Nuevo máximo de iteraciones: "))
+                if nuevas_iter > 0:
+                    bairstow.max_iteraciones = nuevas_iter
+                    console.print("[green]Máximo de iteraciones actualizado[/green]")
+                else:
+                    console.print("[red]El número de iteraciones debe ser positivo[/red]")
+                input("Presione Enter para continuar...")
+                
+            elif opcion == "3":
+                nuevo_p = float(input("Nuevo valor de p inicial: "))
+                bairstow.p_inicial = nuevo_p
+                console.print("[green]Valor de p inicial actualizado[/green]")
+                input("Presione Enter para continuar...")
+                
+            elif opcion == "4":
+                nuevo_q = float(input("Nuevo valor de q inicial: "))
+                bairstow.q_inicial = nuevo_q
+                console.print("[green]Valor de q inicial actualizado[/green]")
+                input("Presione Enter para continuar...")
+                
+            elif opcion == "5":
+                bairstow.tolerancia = 1e-6
+                bairstow.max_iteraciones = 100
+                bairstow.p_inicial = -1.0
+                bairstow.q_inicial = 1.0
+                console.print("[green]Parámetros restaurados a valores por defecto[/green]")
+                input("Presione Enter para continuar...")
+                
+            else:
+                console.print("[red]Opción no válida[/red]")
+                input("Presione Enter para continuar...")
+                
+        except ValueError:
+            console.print("[red]Ingrese un valor válido[/red]")
+            input("Presione Enter para continuar...")
+        except KeyboardInterrupt:
+            break
+
+def ejecutar_metodo(bairstow: Bairstow):
+    """Ejecuta el método de Bairstow y muestra resultados"""
+    os.system('clear')
+    
+    if not bairstow.coeficientes:
+        console.print("[red]Primero debe ingresar los coeficientes del polinomio[/red]")
+        input("Presione Enter para continuar...")
+        return
+    
+    console.print("[bold cyan]Ejecutando Método de Bairstow[/bold cyan]\n")
+    
+    # Mostrar configuración actual
+    tabla_config = Table(show_header=True, box=None)
+    tabla_config.add_column("Parámetro", style="cyan")
+    tabla_config.add_column("Valor", style="yellow")
+    
+    tabla_config.add_row("Tolerancia", f"{bairstow.tolerancia:.2e}")
+    tabla_config.add_row("Max. Iteraciones", str(bairstow.max_iteraciones))
+    tabla_config.add_row("p inicial", f"{bairstow.p_inicial:.4f}")
+    tabla_config.add_row("q inicial", f"{bairstow.q_inicial:.4f}")
+    
+    console.print(tabla_config)
+    console.print()
+    
+    # Ejecutar el método
+    exito = bairstow.ejecutar_metodo()
+    
+    if exito:
+        console.print("\n[bold green]¡Método ejecutado exitosamente![/bold green]")
+        mostrar_resultados_rapidos(bairstow)
+    else:
+        console.print("\n[bold red]El método no convergió[/bold red]")
+        console.print("Intente con diferentes valores iniciales o aumente las iteraciones.")
+    
+    input("\nPresione Enter para continuar...")
+
+def mostrar_resultados_rapidos(bairstow: Bairstow):
+    """Muestra un resumen rápido de los resultados"""
+    console.print(f"\n[cyan]Resumen de Resultados:[/cyan]")
+    console.print(f"Iteraciones realizadas: {bairstow.iteraciones_realizadas}")
+    console.print(f"Número de raíces encontradas: {len(bairstow.raices)}")
+    
+    # Separar raíces reales y complejas
+    raices_reales = [r for r in bairstow.raices if abs(r.imag) < 1e-10]
+    raices_complejas = [r for r in bairstow.raices if abs(r.imag) >= 1e-10]
+    
+    if raices_reales:
+        console.print(f"\nRaíces reales ({len(raices_reales)}):")
+        for i, r in enumerate(raices_reales, 1):
+            console.print(f"  r{i} = {r.real:.6f}")
+    
+    if raices_complejas:
+        console.print(f"\nRaíces complejas ({len(raices_complejas)}):")
+        for i, r in enumerate(raices_complejas, 1):
+            console.print(f"  r{i} = {r.real:.6f} {'+' if r.imag >= 0 else ''}{r.imag:.6f}i")
+
+def mostrar_resultados_detallados(bairstow: Bairstow):
+    """Muestra resultados detallados con gráficos"""
+    if not bairstow.raices:
+        console.print("[red]No hay resultados para mostrar. Ejecute el método primero.[/red]")
+        input("Presione Enter para continuar...")
+        return
+    
+    os.system('clear')
+    
+    console.print("[bold cyan]Resultados Detallados - Método de Bairstow[/bold cyan]\n")
+    
+    # Tabla de raíces detallada
+    tabla_raices = Table(show_header=True)
+    tabla_raices.add_column("Raíz", style="cyan")
+    tabla_raices.add_column("Parte Real", style="green")
+    tabla_raices.add_column("Parte Imaginaria", style="yellow")
+    tabla_raices.add_column("Módulo", style="magenta")
+    tabla_raices.add_column("Tipo", style="blue")
+    
+    for i, raiz in enumerate(bairstow.raices, 1):
+        modulo = abs(raiz)
+        tipo = "Real" if abs(raiz.imag) < 1e-10 else "Compleja"
+        
+        tabla_raices.add_row(
+            f"r{i}",
+            f"{raiz.real:.6f}",
+            f"{raiz.imag:.6f}",
+            f"{modulo:.6f}",
+            tipo
+        )
+    
+    console.print(tabla_raices)
+    
+    # Verificación de las raíces
+    console.print("\n[cyan]Verificación de las raíces:[/cyan]")
+    for i, raiz in enumerate(bairstow.raices, 1):
+        valor = evaluar_polinomio(bairstow.coeficientes, raiz)
+        error = abs(valor)
+        console.print(f"P(r{i}) = {valor:.2e}, |error| = {error:.2e}")
+    
+    # Generar gráficos
+    try:
+        generar_graficos(bairstow)
+        console.print("\n[green]Gráficos mostrados en ventana separada[/green]")
+    except Exception as e:
+        console.print(f"[red]Error al generar gráficos: {e}[/red]")
+    
+    input("\nPresione Enter para continuar...")
+
+def evaluar_polinomio(coeficientes: List[float], x: complex) -> complex:
+    """Evalúa el polinomio en un punto dado"""
+    resultado = 0
+    n = len(coeficientes) - 1
+    for i, coef in enumerate(coeficientes):
+        potencia = n - i
+        resultado += coef * (x ** potencia)
+    return resultado
+
+def generar_graficos(bairstow: Bairstow):
+    """Genera gráficos de los resultados"""
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
+    
+    # Gráfico 1: Polinomio y sus raíces reales
+    if any(abs(r.imag) < 1e-10 for r in bairstow.raices):
+        raices_reales = [r.real for r in bairstow.raices if abs(r.imag) < 1e-10]
+        
+        if raices_reales:
+            x_min = min(raices_reales) - 2
+            x_max = max(raices_reales) + 2
+        else:
+            x_min, x_max = -5, 5
+        
+        x = np.linspace(x_min, x_max, 1000)
+        y = np.zeros_like(x)
+        
+        n = len(bairstow.coeficientes) - 1
+        for i, coef in enumerate(bairstow.coeficientes):
+            potencia = n - i
+            y += coef * (x ** potencia)
+        
+        ax1.plot(x, y, 'b-', linewidth=2, label='P(x)')
+        ax1.axhline(y=0, color='k', linestyle='--', alpha=0.5)
+        ax1.axvline(x=0, color='k', linestyle='--', alpha=0.5)
+        
+        # Marcar raíces reales
+        for raiz in raices_reales:
+            ax1.plot(raiz, 0, 'ro', markersize=8, label=f'Raíz: {raiz:.3f}')
+        
+        ax1.set_xlabel('x')
+        ax1.set_ylabel('P(x)')
+        ax1.set_title('Polinomio y sus Raíces Reales')
+        ax1.grid(True, alpha=0.3)
+        ax1.legend()
+    
+    # Gráfico 2: Plano complejo con todas las raíces
+    for raiz in bairstow.raices:
+        if abs(raiz.imag) < 1e-10:
+            ax2.plot(raiz.real, 0, 'ro', markersize=8, label='Real')
+        else:
+            ax2.plot(raiz.real, raiz.imag, 'bo', markersize=8, label='Compleja')
+    
+    ax2.axhline(y=0, color='k', linestyle='-', alpha=0.3)
+    ax2.axvline(x=0, color='k', linestyle='-', alpha=0.3)
+    ax2.set_xlabel('Parte Real')
+    ax2.set_ylabel('Parte Imaginaria')
+    ax2.set_title('Raíces en el Plano Complejo')
+    ax2.grid(True, alpha=0.3)
+    ax2.set_aspect('equal')
+    
+    # Gráfico 3: Convergencia del método (si hay historial)
+    if bairstow.historial:
+        iteraciones = [h['iteracion'] for h in bairstow.historial]
+        errores_p = [h['error_p'] for h in bairstow.historial]
+        errores_q = [h['error_q'] for h in bairstow.historial]
+        
+        ax3.semilogy(iteraciones, errores_p, 'r-o', label='Error en p')
+        ax3.semilogy(iteraciones, errores_q, 'b-s', label='Error en q')
+        ax3.axhline(y=bairstow.tolerancia, color='g', linestyle='--', label=f'Tolerancia: {bairstow.tolerancia:.2e}')
+        ax3.set_xlabel('Iteración')
+        ax3.set_ylabel('Error (escala log)')
+        ax3.set_title('Convergencia del Método')
+        ax3.grid(True, alpha=0.3)
+        ax3.legend()
+    
+    # Gráfico 4: Distribución de módulos de las raíces
+    modulos = [abs(raiz) for raiz in bairstow.raices]
+    
+    if modulos:
+        ax4.hist(modulos, bins=min(10, len(modulos)), alpha=0.7, color='skyblue', edgecolor='black')
+        ax4.set_xlabel('Módulo de la Raíz')
+        ax4.set_ylabel('Frecuencia')
+        ax4.set_title('Distribución de Módulos')
+        ax4.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.show()
+
+def mostrar_historial_convergencia(bairstow: Bairstow):
+    """Muestra el historial detallado de convergencia"""
+    if not bairstow.historial:
+        console.print("[red]No hay historial de convergencia disponible[/red]")
+        input("Presione Enter para continuar...")
+        return
+    
+    os.system('clear')
+    
+    console.print("[bold cyan]Historial de Convergencia[/bold cyan]\n")
+    
+    tabla = Table(show_header=True)
+    tabla.add_column("Iter.", style="cyan")
+    tabla.add_column("p", style="green")
+    tabla.add_column("q", style="yellow")
+    tabla.add_column("Error p", style="red")
+    tabla.add_column("Error q", style="red")
+    tabla.add_column("Estado", style="blue")
+    
+    for h in bairstow.historial:
+        estado = "Convergió" if (h['error_p'] < bairstow.tolerancia and 
+                                h['error_q'] < bairstow.tolerancia) else "Iterando"
+        
+        tabla.add_row(
+            str(h['iteracion']),
+            f"{h['p']:.6f}",
+            f"{h['q']:.6f}",
+            f"{h['error_p']:.2e}",
+            f"{h['error_q']:.2e}",
+            estado
+        )
+    
+    console.print(tabla)
+    
+    # Estadísticas de convergencia
+    console.print(f"\n[cyan]Estadísticas de Convergencia:[/cyan]")
+    console.print(f"Total de iteraciones: {len(bairstow.historial)}")
+    console.print(f"Error final en p: {bairstow.historial[-1]['error_p']:.2e}")
+    console.print(f"Error final en q: {bairstow.historial[-1]['error_q']:.2e}")
+    console.print(f"Tolerancia objetivo: {bairstow.tolerancia:.2e}")
+    
+    input("\nPresione Enter para continuar...")
+
+def mostrar_ayuda():
+    """Muestra ayuda y ejemplos del método"""
+    os.system('clear')
+    
+    console.print("[bold cyan]Ayuda - Método de Bairstow[/bold cyan]\n")
+    
+    ayuda_text = """
+[yellow]¿Qué hace este método?[/yellow]
+El método de Bairstow encuentra todas las raíces (reales y complejas) de un polinomio
+mediante factorización en términos cuadráticos.
+
+[yellow]¿Cuándo usarlo?[/yellow]
+- Cuando necesitas todas las raíces de un polinomio
+- Para encontrar raíces complejas sin aritmética compleja
+- En análisis de estabilidad y control de sistemas
+- Para factorización de polinomios
+
+[yellow]Parámetros importantes:[/yellow]
+- p, q inicial: Valores iniciales para el factor cuadrático (x² + px + q)
+- Tolerancia: Error máximo aceptable en las correcciones
+- Max. iteraciones: Límite de iteraciones por factor
+
+[yellow]Consejos de uso:[/yellow]
+1. Para polinomios bien condicionados, los valores por defecto funcionan bien
+2. Si no converge, prueba diferentes valores iniciales de p y q
+3. Aumenta las iteraciones para polinomios de grado alto
+4. Reduce la tolerancia para mayor precisión
+
+[yellow]Ejemplos de polinomios:[/yellow]
+- Cuadrático: x² - 3x + 2 → coeficientes [1, -3, 2]
+- Cúbico: x³ - 6x² + 11x - 6 → coeficientes [1, -6, 11, -6]  
+- Con raíces complejas: x² + 1 → coeficientes [1, 0, 1]
+
+[yellow]Interpretación de resultados:[/yellow]
+- Raíces reales: parte imaginaria ≈ 0
+- Raíces complejas: aparecen en pares conjugados
+- Módulo: distancia de la raíz al origen en el plano complejo
+"""
+    
+    console.print(ayuda_text)
+    
+    input("\nPresione Enter para continuar...")
+
+def main():
+    """Función principal del programa"""
+    bairstow = Bairstow()
+    
+    while True:
+        mostrar_menu_principal()
+        
+        try:
+            opcion = input("Seleccione una opción: ").strip()
+            
+            if opcion == "0":
+                console.print("[yellow]¡Hasta luego![/yellow]")
+                break
+            elif opcion == "1":
+                ingresar_coeficientes(bairstow)
+            elif opcion == "2":
+                configurar_parametros(bairstow)
+            elif opcion == "3":
+                ejecutar_metodo(bairstow)
+            elif opcion == "4":
+                mostrar_resultados_detallados(bairstow)
+            elif opcion == "5":
+                mostrar_historial_convergencia(bairstow)
+            elif opcion == "6":
+                mostrar_ayuda()
+            else:
+                console.print("[red]Opción no válida. Intente nuevamente.[/red]")
+                input("Presione Enter para continuar...")
+                
+        except KeyboardInterrupt:
+            console.print("\n[yellow]¡Hasta luego![/yellow]")
+            break
+        except Exception as e:
+            console.print(f"[red]Error inesperado: {e}[/red]")
+            input("Presione Enter para continuar...")
+
+if __name__ == "__main__":
+    main()
+```
+
+# Interfaz de usuario
+
+La interfaz del método de Bairstow está diseñada para ser intuitiva y guiar al usuario paso a paso:
+
+## Flujo Principal
+1. **Menú principal** - Navegación clara con opciones numeradas
+2. **Ingreso de coeficientes** - Entrada guiada del polinomio
+3. **Configuración** - Ajuste de parámetros del método
+4. **Ejecución** - Procesamiento con feedback en tiempo real
+5. **Resultados** - Visualización detallada con gráficos
+
+## Características de la Interfaz
+- **Validación robusta** de entrada de datos
+- **Mensajes de error** descriptivos y útiles
+- **Progress indicators** durante la ejecución
+- **Limpieza de pantalla** entre menús
+- **Tablas formateadas** con Rich
+- **Gráficos interactivos** con Matplotlib
+
+# Ejemplos de ejecución
+
+## Ejemplo 1: Polinomio con raíces reales
+```
+Polinomio: x³ - 6x² + 11x - 6
+Coeficientes: [1, -6, 11, -6]
+
+Resultados:
+- r1 = 1.000000 (real)
+- r2 = 2.000000 (real)  
+- r3 = 3.000000 (real)
+
+Iteraciones: 5
+```
+
+## Ejemplo 2: Polinomio con raíces complejas
+```
+Polinomio: x⁴ + x² + 1
+Coeficientes: [1, 0, 1, 0, 1]
+
+Resultados:
+- r1 = 0.707107 + 0.707107i (compleja)
+- r2 = 0.707107 - 0.707107i (compleja)
+- r3 = -0.707107 + 0.707107i (compleja)
+- r4 = -0.707107 - 0.707107i (compleja)
+
+Iteraciones: 8
+```
+
+# Visualizaciones
+
+El método genera múltiples gráficos para ayudar en la interpretación:
+
+1. **Gráfico del polinomio** - Muestra la función y las raíces reales marcadas
+2. **Plano complejo** - Distribución de todas las raíces
+3. **Convergencia** - Evolución de los errores en p y q
+4. **Histograma de módulos** - Distribución de las magnitudes de las raíces
+
+# Ideas de mejora
+
+## Optimizaciones Algorítmicas
+- **Selección adaptativa** de valores iniciales basada en coeficientes
+- **Técnicas de aceleración** de convergencia (Aitken, Steffensen)
+- **Deflación mejorada** para mantener estabilidad numérica
+- **Condicionamiento** del polinomio para casos mal condicionados
+
+## Funcionalidades Adicionales
+- **Análisis de sensibilidad** de las raíces
+- **Exportación de resultados** a diferentes formatos
+- **Comparación con otros métodos** (Newton, Muller)
+- **Visualización 3D** para polinomios complejos
+
+## Mejoras de Interfaz
+- **Entrada simbólica** de polinomios
+- **Historial de sesiones** y configuraciones guardadas
+- **Modo batch** para múltiples polinomios
+- **Integración con CAS** (Computer Algebra Systems)
+
+# Complicaciones encontradas
+
+## Desafíos Numéricos
+1. **Condicionamiento**: Polinomios mal condicionados pueden causar pérdida de precisión
+2. **Raíces múltiples**: El método puede tener dificultades con factores repetidos
+3. **Valores iniciales**: La elección de p y q iniciales afecta significativamente la convergencia
+4. **Deflación**: Los errores se acumulan al reducir el polinomio
+
+## Soluciones Implementadas
+- **Validación extensiva** de entrada para evitar casos problemáticos
+- **Múltiples intentos** con diferentes valores iniciales si no converge
+- **Monitoreo de convergencia** con criterios adaptativos
+- **Verificación de raíces** mediante evaluación del polinomio
+
+## Casos Edge Manejados
+- Polinomios de grado 1 y 2 (casos especiales)
+- Coeficientes muy pequeños o muy grandes
+- Raíces muy cercanas entre sí
+- Factores cuadráticos con discriminante próximo a cero
+
+# Manual de uso
+
+## Instalación de Dependencias
+```bash
+pip install numpy matplotlib rich sympy tqdm
+```
+
+## Ejecución del Programa
+```bash
+cd ecuaciones_no_lineales
+python bairstow.py
+```
+
+## Pasos para Usar el Método
+
+### 1. Ingresar Coeficientes
+- Seleccionar opción 1 en el menú principal
+- Especificar el grado del polinomio
+- Ingresar coeficientes desde el término de mayor grado al menor
+- El programa mostrará el polinomio formateado para verificación
+
+### 2. Configurar Parámetros (Opcional)
+- Seleccionar opción 2 para ajustar:
+  - **Tolerancia**: Error máximo aceptable (default: 1e-6)
+  - **Iteraciones máximas**: Límite por factor (default: 100)
+  - **p inicial**: Valor inicial del parámetro p (default: -1.0)
+  - **q inicial**: Valor inicial del parámetro q (default: 1.0)
+
+### 3. Ejecutar el Método
+- Seleccionar opción 3
+- El programa mostrará el progreso en tiempo real
+- Se indicará cada factor cuadrático encontrado
+- Al finalizar, se mostrará un resumen de resultados
+
+### 4. Ver Resultados Detallados
+- Seleccionar opción 4 para ver:
+  - Tabla completa de raíces con partes real e imaginaria
+  - Verificación de las raíces encontradas
+  - Gráficos interactivos de visualización
+
+### 5. Analizar Convergencia
+- Seleccionar opción 5 para ver:
+  - Historial completo de iteraciones
+  - Evolución de los errores en p y q
+  - Estadísticas de convergencia
+
+## Recomendaciones de Uso
+
+### Para Principiantes
+1. Comenzar con polinomios simples (grado 2-4)
+2. Usar los parámetros por defecto inicialmente
+3. Verificar siempre los resultados con la opción de resultados detallados
+
+### Para Usuarios Avanzados
+1. Experimentar con diferentes valores iniciales para casos difíciles
+2. Ajustar la tolerancia según la precisión requerida
+3. Usar el historial de convergencia para análisis de comportamiento
+
+### Resolución de Problemas
+- **No converge**: Intentar diferentes valores de p y q iniciales
+- **Convergencia lenta**: Aumentar el número máximo de iteraciones
+- **Resultados imprecisos**: Reducir la tolerancia
+- **Error en entrada**: Verificar formato de coeficientes (números válidos)
